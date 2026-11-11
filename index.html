@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="公廁巡檢">
+  <title>公廁巡檢系統</title>
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+
+  <style>
+    :root {
+      --theme-primary: #007AFF;
+      --theme-accent: #34C759;
+      --theme-grad: linear-gradient(135deg, #34C759 0%, #30B0C7 100%);
+      --ios-red: #FF3B30;
+      --ios-orange: #FF9500;
+
+      /* 100% 純色不透明設計，完全移除任何 backdrop-filter 與半透明霧面 */
+      --bg-page: #F2F4F7;
+      --mat-thick: #FFFFFF;
+      --mat-thin: #F8FAFC;
+      --border-light: #E2E8F0;
+      --border-dim: #EDF2F7;
+      
+      --label-primary: #1E293B;
+      --label-secondary: #64748B;
+      --label-tertiary: #94A3B8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--label-primary);
+      overflow-x: hidden;
+      min-height: 100vh;
+      background-color: var(--bg-page);
+    }
+
+    /* 頂部安全區域純白實心保護層：徹底阻絕 iOS 狀態列下方系統預設霧面感 */
+    .ios-safe-top-solid {
+      width: 100%;
+      padding-top: env(safe-area-inset-top, 0px);
+      background-color: #FFFFFF;
+    }
+
+    .material-icons {
+      font-family: 'Material Symbols Rounded', sans-serif;
+      font-weight: normal;
+      font-style: normal;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .native-file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+      opacity: 0.01;
+      pointer-events: none;
+    }
+
+    /* 歡迎畫面：100% 實心純色 */
+    #welcome-screen {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999;
+      background-color: var(--bg-page);
+      transition: opacity 0.25s ease;
+    }
+
+    .welcome-content {
+      display: flex; flex-direction: column; align-items: center; width: 88%; max-width: 380px;
+      background-color: #FFFFFF; border: 1px solid var(--border-light);
+      border-radius: 28px; padding: 36px 28px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    .welcome-logo-container { position: relative; margin-bottom: 16px; }
+    .welcome-logo { width: 80px; height: 80px; }
+
+    .welcome-title { font-size: 28px; font-weight: 800; margin-bottom: 6px; text-align: center; color: #1E293B; }
+    .welcome-subtitle { font-size: 15px; color: var(--label-secondary); margin-bottom: 24px; font-weight: 500; text-align: center; }
+
+    .welcome-input-group { width: 100%; margin-bottom: 16px; }
+    .welcome-input {
+      width: 100%; padding: 15px; border-radius: 16px; border: 1px solid var(--border-light);
+      font-size: 18px; background-color: var(--mat-thin); color: var(--label-primary);
+      outline: none; text-align: center; font-weight: 600;
+    }
+    .welcome-input::placeholder { color: var(--label-tertiary); font-weight: 500; }
+    .welcome-input:focus { background-color: #FFFFFF; border-color: var(--theme-primary); }
+
+    .welcome-btn {
+      width: 100%; padding: 16px; border-radius: 16px; border: none;
+      font-size: 18px; font-weight: 700; background: var(--theme-grad); color: #fff;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .welcome-btn:active { transform: scale(0.97); }
+    .welcome-btn:disabled { background: var(--mat-thin); color: var(--label-tertiary); pointer-events: none; border: 1px solid var(--border-light); }
+
+    .api-setup-toggle {
+      margin-top: 16px; font-size: 13px; color: var(--label-secondary); font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 4px;
+    }
+    
+    .loading-spinner {
+      display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #app-main { opacity: 0; display: none; padding-bottom: 150px; }
+    .container { max-width: 600px; margin: 0 auto; padding: 0 16px; }
+    
+    /* 頂部標題列：100% 實心純白，不隨捲動懸浮，無任何霧面 */
+    .app-header-wrapper {
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 14px;
+    }
+    .app-header {
+      padding-top: 14px;
+      padding-bottom: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .app-title-group { display: flex; align-items: center; gap: 8px; }
+    .app-title { font-size: 25px; font-weight: 800; color: #1E293B; }
+    
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn-circle {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; background-color: var(--mat-thin); border: 1px solid var(--border-light);
+      border-radius: 50%; color: var(--label-secondary); cursor: pointer;
+    }
+    .icon-btn-circle:active { transform: scale(0.92); }
+
+    .user-profile {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; background: var(--theme-grad); border-radius: 50%;
+      color: white; cursor: pointer; font-weight: 700; font-size: 16px; text-transform: uppercase;
+    }
+    .user-profile:active { transform: scale(0.92); }
+
+    .ios-section { margin-top: 16px; }
+    .ios-section-header {
+      font-size: 13px; font-weight: 700; color: var(--label-secondary);
+      margin-left: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
+      padding-right: 8px;
+    }
+
+    .ios-list {
+      background-color: #FFFFFF;
+      border: 1px solid var(--border-light); border-radius: 18px; overflow: hidden;
+    }
+    .ios-list-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 15px 16px; border-bottom: 1px solid var(--border-dim);
+      font-size: 17px; background-color: #FFFFFF;
+    }
+    .ios-list-item:last-child { border-bottom: none; }
+    .ios-list-item.clickable { cursor: pointer; }
+    .ios-list-item.clickable:active { background-color: var(--mat-thin); }
+    
+    .ios-list-label { font-weight: 600; display: flex; align-items: center; gap: 10px; }
+    .icon-box {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 10px; background-color: var(--mat-thin); color: var(--theme-primary);
+    }
+    .icon-box.green { color: var(--theme-accent); }
+    .icon-box.cyan { color: #30B0C7; }
+
+    .ios-list-value { color: var(--label-secondary); display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 16px; }
+    .ios-list-value .placeholder { color: var(--label-tertiary); font-weight: 500; }
+    .ios-list-value i.chevron { font-size: 22px; opacity: 0.4; margin-right: -6px; }
+
+    .segmented-control {
+      display: flex; background-color: var(--mat-thin); border-radius: 12px; padding: 4px; width: 100%;
+      border: 1px solid var(--border-light);
+    }
+    .segmented-item {
+      flex: 1; text-align: center; padding: 10px 0; border-radius: 9px;
+      font-size: 15px; font-weight: 600; color: var(--label-secondary); cursor: pointer;
+    }
+    .segmented-item.active { background-color: #FFFFFF; color: var(--theme-primary); font-weight: 700; border: 1px solid var(--border-light); }
+
+    .sub-task-scroll {
+      display: flex; overflow-x: auto; gap: 10px; padding: 14px 16px;
+      scrollbar-width: none; background-color: #FFFFFF;
+    }
+    .sub-task-scroll::-webkit-scrollbar { display: none; }
+    .sub-task-pill {
+      padding: 10px 16px; border-radius: 14px; background-color: var(--mat-thin);
+      border: 1px solid var(--border-light); font-size: 15px; font-weight: 700;
+      color: var(--label-secondary); white-space: nowrap; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sub-task-pill:active { transform: scale(0.96); }
+    .sub-task-pill.active { background-color: var(--theme-primary); color: white; border-color: var(--theme-primary); }
+    .sub-task-pill.done { background-color: var(--theme-accent); color: white; border-color: var(--theme-accent); }
+
+    .btn-primary {
+      font-size: 18px; padding: 15px; width: 100%; border-radius: 14px; border: none;
+      background: var(--theme-grad); color: white; font-weight: 700; cursor: pointer;
+      display: flex; justify-content: center; align-items: center; gap: 8px;
+    }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-primary:disabled { background: var(--mat-thin); color: var(--label-tertiary); border: 1px solid var(--border-light); cursor: not-allowed; }
+
+    .btn-secondary {
+      font-size: 15px; padding: 12px 10px; width: 100%; border-radius: 12px; border: 1px solid var(--border-light);
+      background-color: var(--mat-thin); color: var(--theme-primary); font-weight: 700; cursor: pointer;
+      display: flex; justify-content: center; align-items: center; gap: 5px; user-select: none;
+    }
+    .btn-secondary:active { transform: scale(0.97); background-color: var(--border-dim); }
+    .btn-secondary.orange { color: #D97706; background-color: #FEF3C7; border-color: #FDE68A; }
+
+    /* 照片工具列與統計標籤 */
+    .pool-toolbar {
+      padding: 14px 14px 4px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .pool-toolbar-row {
+      display: flex; gap: 8px; width: 100%;
+    }
+    .pool-stats-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 14px 0; font-size: 13px; color: var(--label-secondary); font-weight: 600;
+    }
+
+    .floating-upload-bar {
+      position: fixed;
+      bottom: 84px;
+      left: 50%;
+      transform: translateX(-50%) translateY(160px);
+      width: calc(100% - 32px);
+      max-width: 568px;
+      z-index: 1500;
+      transition: transform 0.25s ease, opacity 0.2s;
+      opacity: 0;
+      pointer-events: none;
+      background-color: #FFFFFF;
+      border: 2px solid var(--border-light);
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    }
+    .floating-upload-bar.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .upload-progress-box { width: 100%; margin-bottom: 10px; display: none; }
+    .upload-progress-info {
+      display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--label-secondary); margin-bottom: 6px;
+    }
+    .progress-bar-bg { width: 100%; height: 8px; background-color: var(--border-light); border-radius: 4px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; width: 0%; background-color: var(--theme-accent); transition: width 0.2s ease; }
+
+    .upload-actions-group { display: flex; gap: 10px; width: 100%; }
+    .btn-cancel {
+      padding: 0 18px; border-radius: 14px; background-color: #FEE2E2;
+      color: var(--ios-red); font-weight: 800; font-size: 15px; cursor: pointer; display: none;
+      border: 1px solid #FCA5A5;
+    }
+    .btn-cancel:active { transform: scale(0.95); }
+
+    /* 專為 100~200 張照片優化的預覽網格：使用 content-visibility 加速長列表捲動 */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+      gap: 10px;
+      padding: 12px 14px 16px;
+    }
+    .preview-item { 
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden; 
+      background-color: var(--mat-thin);
+      border: 2.5px solid transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      content-visibility: auto;
+      contain-intrinsic-size: 92px 92px;
+    }
+    .preview-item.selected-card {
+      border-color: var(--theme-primary);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+    }
+    .preview-item img {
+      width: 100%; height: 100%; object-fit: cover; pointer-events: auto; display: block;
+    }
+    .preview-item.unselected img { opacity: 0.65; }
+    .preview-item input[type=checkbox] {
+      position: absolute; bottom: 6px; right: 6px; width: 22px; height: 22px;
+      accent-color: var(--theme-primary); pointer-events: none; z-index: 3;
+    }
+
+    /* 照片序號標籤：方便 100~200 張照片時核對拍到第幾張 */
+    .photo-index-badge {
+      position: absolute; bottom: 6px; left: 6px;
+      background-color: rgba(15, 23, 42, 0.75); color: #FFFFFF;
+      font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+      z-index: 3; pointer-events: none;
+    }
+    
+    .delete-photo {
+      position: absolute; top: 5px; left: 5px; width: 24px; height: 24px;
+      background-color: var(--ios-red); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: bold; color: white; cursor: pointer; border: 1.5px solid #fff;
+      z-index: 4;
+    }
+    .delete-photo:active { transform: scale(0.85); }
+
+    /* 已上傳保留打勾遮罩 + 顯示上傳去向公廁名稱，防止忘記傳到哪裡 */
+    .uploaded-overlay {
+      position: absolute; inset: 0; background-color: rgba(255, 255, 255, 0.72);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 5; pointer-events: none; padding: 4px;
+    }
+    .uploaded-check {
+      width: 34px; height: 34px; border-radius: 50%; background-color: var(--theme-accent);
+      color: white; display: flex; align-items: center; justify-content: center; font-size: 22px;
+      margin-bottom: 4px;
+    }
+    .uploaded-target-tag {
+      background-color: #0F172A; color: #FFFFFF; font-size: 10px; font-weight: 700;
+      padding: 2px 6px; border-radius: 6px; max-width: 95%;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+    }
+
+    .empty-state { padding: 32px 20px; text-align: center; color: var(--label-tertiary); }
+    .empty-state i { font-size: 46px; margin-bottom: 8px; display: block; color: var(--label-tertiary); }
+
+    .lightbox {
+      position: fixed; inset: 0; background-color: #000000;
+      z-index: 99999; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: 0.15s;
+    }
+    .lightbox.show { opacity: 1; pointer-events: auto; }
+    .lightbox img { max-width: 95vw; max-height: 85vh; border-radius: 12px; }
+    .lightbox-close {
+      position: absolute; top: 24px; right: 20px;
+      width: 44px; height: 44px; background-color: #334155; border-radius: 50%;
+      color: white; display: flex; align-items: center; justify-content: center; font-size: 28px; cursor: pointer;
+    }
+
+    .filter-scroll-wrapper { margin-top: 8px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+    .filter-scroll-wrapper::-webkit-scrollbar { display: none; }
+    .filter-bar { display: flex; gap: 10px; padding-bottom: 6px; padding-left: 2px; }
+    .filter-chip {
+      padding: 9px 18px; border-radius: 20px; background-color: #FFFFFF;
+      font-size: 15px; font-weight: 700; border: 1px solid var(--border-light);
+      cursor: pointer; color: var(--label-secondary); white-space: nowrap;
+    }
+    .filter-chip.active { background-color: var(--theme-primary); color: #FFFFFF; border-color: var(--theme-primary); }
+
+    #historyListContainer { display: flex; flex-direction: column; gap: 12px; }
+    .history-card {
+      background-color: #FFFFFF;
+      border: 1px solid var(--border-light); border-radius: 18px; padding: 16px 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      position: relative; overflow: hidden;
+    }
+    .history-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--theme-grad); }
+    .hist-left { display: flex; align-items: center; gap: 14px; }
+    .hist-badge {
+      width: 42px; height: 42px; border-radius: 12px; background-color: #E0F2FE;
+      color: #0284C7; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 17px; flex-shrink: 0;
+    }
+    .hist-info { display: flex; flex-direction: column; gap: 4px; }
+    .hist-name { font-size: 17px; font-weight: 800; color: var(--label-primary); }
+    .hist-code { font-size: 13px; color: var(--label-secondary); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .hist-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+    
+    .hist-user-chip {
+      font-size: 13px; color: var(--label-primary); font-weight: 600; background-color: var(--mat-thin); 
+      padding: 6px 12px; border-radius: 12px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border-light);
+    }
+    .hist-user-avatar { width: 20px; height: 20px; border-radius: 50%; background-color: var(--theme-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+
+    /* 底部導覽列：100% 實心純白 */
+    .tab-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; 
+      background-color: #FFFFFF;
+      border-top: 1px solid var(--border-light); display: flex; justify-content: space-around;
+      padding: 10px 0 calc(14px + env(safe-area-inset-bottom, 4px)); z-index: 1000;
+    }
+    .tab-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--label-tertiary); cursor: pointer; width: 70px; }
+    .tab-item.active { color: var(--theme-primary); }
+    .tab-icon { font-size: 26px; }
+    .tab-text { font-size: 12px; font-weight: 800; }
+
+    .bottom-sheet-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.55); z-index: 2000; display: flex; align-items: flex-end; opacity: 0; transition: opacity 0.2s; }
+    .bottom-sheet {
+      background-color: #FFFFFF;
+      width: 100%; max-width: 600px; margin: 0 auto; border-top: 1px solid var(--border-light);
+      border-radius: 24px 24px 0 0; padding: 18px 18px 28px;
+      max-height: 85vh; overflow-y: auto; transform: translateY(100%); transition: transform 0.22s ease-out;
+    }
+    .bottom-sheet-overlay.show { opacity: 1; }
+    .bottom-sheet-overlay.show .bottom-sheet { transform: translateY(0); }
+    
+    .sheet-handle { width: 44px; height: 5px; background-color: #CBD5E1; border-radius: 4px; margin: 0 auto 14px; }
+    .sheet-title { font-weight: 800; font-size: 18px; margin-bottom: 14px; text-align: center; color: var(--label-primary); }
+    .sheet-search {
+      width: 100%; padding: 13px 16px; border-radius: 14px; border: 1px solid var(--border-light);
+      background-color: var(--mat-thin); font-size: 16px; margin-bottom: 14px; color: var(--label-primary); outline: none; font-weight: 500;
+    }
+    .sheet-search:focus { background-color: #FFFFFF; border-color: var(--theme-primary); }
+    
+    .sheet-list { background-color: var(--mat-thin); border-radius: 14px; overflow: hidden; border: 1px solid var(--border-light); }
+    .sheet-item { padding: 15px 16px; border-bottom: 1px solid var(--border-dim); font-size: 17px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; }
+    .sheet-item:active { background-color: var(--mat-thin); }
+    .sheet-item:last-child { border-bottom: none; }
+
+    .hidden { display: none !important; }
+    
+    .toast {
+      position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-120px);
+      background-color: #1E293B; border-radius: 16px; padding: 12px 20px;
+      z-index: 3000; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 10px;
+      transition: transform 0.25s ease; color: #FFFFFF;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      max-width: 92vw;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    .skeleton-card { display: flex; gap: 16px; padding: 18px; border: 1px solid var(--border-light); background-color: #FFFFFF; border-radius: 18px; margin-bottom: 12px; }
+    .skeleton-badge { width: 42px; height: 42px; border-radius: 12px; background-color: var(--border-dim); }
+    .skeleton-line { height: 16px; border-radius: 6px; background-color: var(--border-dim); margin-bottom: 8px; }
+
+    /* 全域載入照片進度條遮罩（實心不模糊） */
+    #globalLoader {
+      position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.78);
+      z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    }
+    #globalLoader.show { opacity: 1; pointer-events: auto; }
+    .loader-card {
+      background-color: #FFFFFF; color: var(--label-primary);
+      width: 84%; max-width: 320px; border-radius: 22px; padding: 26px 22px;
+      display: flex; flex-direction: column; align-items: center;
+      border: 1px solid var(--border-light);
+    }
+    .global-spinner { width: 38px; height: 38px; border: 4px solid var(--border-light); border-radius: 50%; border-top-color: var(--theme-accent); animation: spin 0.75s linear infinite; margin-bottom: 14px; }
+    .loader-progress-wrap { width: 100%; margin-top: 12px; }
+    .loader-progress-bg { width: 100%; height: 10px; background-color: var(--border-light); border-radius: 5px; overflow: hidden; }
+    .loader-progress-fill { height: 100%; width: 0%; background-color: var(--theme-accent); transition: width 0.1s ease; }
+    .loader-percent { font-size: 13px; font-weight: 700; color: var(--label-secondary); text-align: right; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <input type="file" id="hiddenPhotoInput" class="native-file-input" accept="image/*" multiple />
+
+  <div id="welcome-screen">
+    <div class="welcome-content">
+      <div class="welcome-logo-container">
+        <svg class="welcome-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="28" fill="url(#paint0_linear)"/>
+          <path d="M42 35H68M42 50H68M42 65H55M28 35L33 40L38 32M28 50L33 55L38 47M28 65L33 70L38 62" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="paint0_linear" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#34C759"/>
+              <stop offset="1" stop-color="#30B0C7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      
+      <h1 class="welcome-title">公廁巡檢</h1>
+      <p class="welcome-subtitle">南投縣環境維護專屬工具</p>
+
+      <div class="welcome-input-group">
+        <input type="text" id="welcomeNameInput" class="welcome-input" placeholder="請輸入巡檢員姓名">
+      </div>
+
+      <button class="welcome-btn" id="enterBtn" onclick="enterApp()">
+        <span id="btnText">啟動系統</span>
+        <div class="loading-spinner" id="btnSpinner"></div>
+      </button>
+
+      <div class="api-setup-toggle" onclick="promptApiUrlConfig()">
+        <i class="material-icons" style="font-size: 18px;">settings</i> 設定後端連線網址
+      </div>
+    </div>
+  </div>
+
+  <div id="app-main">
+    <div class="ios-safe-top-solid"></div>
+    <div class="app-header-wrapper">
+      <div class="container app-header">
+        <div class="app-title-group">
+          <div class="app-title" id="pageTitle">公廁上傳</div>
+        </div>
+        <div class="header-actions">
+          <div class="icon-btn-circle" onclick="forceSyncMasterData()" title="重新同步公廁名冊">
+            <i class="material-icons" style="font-size: 20px;">sync</i>
+          </div>
+          <div class="icon-btn-circle" onclick="promptApiUrlConfig()" title="設定 GAS 後端網址">
+            <i class="material-icons" style="font-size: 20px;">link</i>
+          </div>
+          <div class="user-profile" id="userAvatar" onclick="editProfile()" title="修改使用者">A</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container" id="page-upload">
+      
+      <div class="ios-section" style="margin-top: 2px;">
+        <div class="ios-section-header">
+          <span>公廁資訊設定</span>
+          <span id="masterCountBadge" style="font-size: 12px; color: var(--label-tertiary);"></span>
+        </div>
+        <div class="ios-list">
+          <div class="ios-list-item" style="display: block; padding: 12px 14px;">
+            <div class="segmented-control" id="typeSegmented">
+              <div class="segmented-item active" data-type="重點公廁">重點公廁</div>
+              <div class="segmented-item" data-type="優等公廁">優等公廁</div>
+              <div class="segmented-item" data-type="列管公廁">列管公廁</div>
+            </div>
+          </div>
+          <div class="ios-list-item clickable" onclick="openSheet('township')">
+            <span class="ios-list-label"><div class="icon-box"><i class="material-icons">map</i></div> 鄉鎮市</span>
+            <div class="ios-list-value"><span id="townshipText">南投市</span> <i class="material-icons chevron">chevron_right</i></div>
+          </div>
+          <div class="ios-list-item clickable" onclick="openSheet('name')">
+            <span class="ios-list-label"><div class="icon-box green"><i class="material-icons">storefront</i></div> 公廁名稱</span>
+            <div class="ios-list-value"><span id="nameText" class="placeholder">請選擇公廁</span> <i class="material-icons chevron">chevron_right</i></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="subTaskSection" class="ios-section hidden">
+        <div class="ios-section-header">該地點廁間任務清單</div>
+        <div class="ios-list">
+          <div class="sub-task-scroll" id="subTaskScroll"></div>
+        </div>
+      </div>
+
+      <div id="info" class="ios-section hidden">
+        <div class="ios-section-header">詳細資料</div>
+        <div class="ios-list">
+          <div class="ios-list-item"><span class="ios-list-label"><div class="icon-box cyan"><i class="material-icons">tag</i></div> 編號</span><span id="code" class="ios-list-value" style="color: #30B0C7; font-weight: 800;"></span></div>
+          <div class="ios-list-item"><span class="ios-list-label"><div class="icon-box"><i class="material-icons">business</i></div> 權責單位</span><span id="unit" class="ios-list-value"></span></div>
+        </div>
+      </div>
+
+      <div id="photoSection" class="ios-section hidden">
+        <div class="ios-section-header">
+          <span>全域照片暫存池 (保留已傳打勾紀錄)</span>
+          <span id="poolSummaryText" style="color: var(--theme-primary);"></span>
+        </div>
+        <div class="ios-list" style="padding-bottom: 12px;">
+          <div class="pool-toolbar">
+            <div class="pool-toolbar-row">
+              <label for="hiddenPhotoInput" id="selectPhotoBtn" class="btn-secondary" style="flex: 2; margin: 0;">
+                <i class="material-icons">add_circle</i> 載入照片 (支援百張)
+              </label>
+              <button type="button" id="rangeSelectBtn" class="btn-secondary orange" style="flex: 1.2;">
+                <i class="material-icons">linear_scale</i> 區間連選
+              </button>
+              <button type="button" id="selectAllBtn" class="btn-secondary" style="flex: 1;">
+                <i class="material-icons">done_all</i> 全選
+              </button>
+            </div>
+          </div>
+
+          <div class="pool-stats-bar" id="poolStatsBar">
+            <span>💡 提示：點選首張與末張再按「區間連選」可一次勾選整段照片</span>
+          </div>
+
+          <div class="preview-grid" id="preview">
+            <div class="empty-state" id="photoEmpty" style="grid-column: 1 / -1;">
+              <i class="material-icons">add_a_photo</i>
+              <p style="font-size: 16px; font-weight: 600;">點擊上方「載入照片」加入相簿照片</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container hidden" id="page-history">
+      <div class="filter-scroll-wrapper">
+        <div class="filter-bar" id="filterBar">
+          <span class="filter-chip active" data-filter="currentUser">我的紀錄</span>
+          <span class="filter-chip" data-filter="all">全部紀錄</span>
+          <span class="filter-chip" data-filter="重點公廁">重點</span>
+          <span class="filter-chip" data-filter="優等公廁">優等</span>
+        </div>
+      </div>
+      
+      <div id="historyListContainer">
+        <div id="historyBody">
+          <div class="skeleton-card"><div class="skeleton-badge"></div><div style="flex:1"><div class="skeleton-line" style="width: 60%;"></div><div class="skeleton-line" style="width: 40%; height:14px;"></div></div></div>
+          <div class="skeleton-card"><div class="skeleton-badge"></div><div style="flex:1"><div class="skeleton-line" style="width: 50%;"></div><div class="skeleton-line" style="width: 30%; height:14px;"></div></div></div>
+        </div>
+        <div class="empty-state hidden" id="historyEmpty" style="background-color: #FFFFFF; border-radius: 18px; border: 1px solid var(--border-light); margin-top: 16px;">
+          <i class="material-icons">history</i>
+          <p style="font-weight: 700; font-size: 17px;">尚無符合的紀錄</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item active" data-page="upload" onclick="switchPage('upload', '公廁上傳')">
+        <i class="material-icons tab-icon">add_box</i>
+        <span class="tab-text">上傳</span>
+      </div>
+      <div class="tab-item" data-page="history" onclick="switchPage('history', '巡檢紀錄')">
+        <i class="material-icons tab-icon">stacks</i>
+        <span class="tab-text">紀錄</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="floatingUploadBar" class="floating-upload-bar">
+    <div class="upload-progress-box" id="uploadProgressBox">
+      <div class="upload-progress-info">
+        <span id="progressStatusText">上傳中...</span>
+        <span id="progressPercentText">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+    </div>
+    <div class="upload-actions-group">
+      <button id="uploadBtn" class="btn-primary" style="margin: 0; flex: 1;">
+        <i class="material-icons" id="uploadIcon">cloud_upload</i>
+        <div class="loading-spinner" id="uploadSpinner" style="display:none; border-top-color:#fff; margin-right:6px;"></div>
+        <span id="uploadBtnText">上傳選取照片</span>
+      </button>
+      <button id="cancelUploadBtn" class="btn-cancel">取消</button>
+    </div>
+  </div>
+
+  <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+    <div class="lightbox-close"><i class="material-icons">close</i></div>
+    <img id="lightboxImg" src="" onclick="event.stopPropagation()">
+  </div>
+
+  <div id="bottomSheetContainer"></div>
+  <div id="toastContainer" class="toast"><i class="material-icons" id="toastIcon">check_circle</i><span id="toastMsg">成功</span></div>
+
+  <div id="globalLoader">
+    <div class="loader-card">
+      <div class="global-spinner"></div>
+      <div id="globalLoaderText" style="font-weight: 800; font-size: 17px; text-align: center;">正在極速處理照片...</div>
+      <div class="loader-progress-wrap">
+        <div class="loader-progress-bg">
+          <div class="loader-progress-fill" id="loaderProgressFill"></div>
+        </div>
+        <div class="loader-percent" id="loaderPercentText">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * 【GitHub Pages 部署設定區】
+     * 若您將此檔案放到 GitHub Pages，請將下方 DEFAULT_GAS_EXEC_URL 替換為您 GAS 部署後的「網頁應用程式網址 (結尾為 /exec)」。
+     * 或者您也可以直接在網頁介面上點擊「設定後端連線網址」貼上儲存（會自動記憶在手機裡）。
+     * ============================================================================
+     */
+    const DEFAULT_GAS_EXEC_URL = ''; 
+
+    function getGasApiUrl() {
+      return localStorage.getItem('toilet_gas_api_url') || DEFAULT_GAS_EXEC_URL;
+    }
+
+    function promptApiUrlConfig() {
+      const current = getGasApiUrl();
+      const input = prompt('請貼上 Google Apps Script 部署後的網頁應用程式網址 (https://script.google.com/macros/s/.../exec)：', current);
+      if (input !== null) {
+        const trimmed = input.trim();
+        localStorage.setItem('toilet_gas_api_url', trimmed);
+        if (trimmed) {
+          showToast('已儲存後端連線網址，正在同步資料...');
+          fetchDataInBackground(true);
+        } else {
+          showToast('已清除自訂連線網址');
+        }
+      }
+    }
+
+    let allData = [], photoQueue = [], selectedToilet = null, currentSheetType = '', selectedType = '重點公廁';
+    let allHistory = [], currentFilter = 'currentUser', currentGroupRows = [], isDataLoaded = false;
+    let toastTimer = null;
+    let isUploading = false, cancelRequested = false;
+    let isProcessingFiles = false;
+
+    const CAT_REGEX = /(?:[\-\_\(\（\s]*)(男廁|女廁|無障礙廁所|親子廁所|混合廁所|性別友善廁所|無障礙|哺集乳室|多功能廁所|廁所)[\)\）\s]*$/i;
+    const FLOOR_REGEX = /(?:[\-\_\(\（\s]*)([B|b]\d+\s*(?:F|f|樓)?|\d+\s*(?:F|f|樓)|[一二三四五六七八九十]+\s*樓|[地|頂]下?\d*\s*樓?)[\)\）\s]*$/i;
+    const parsedNameCache = {};
+
+    function parseToiletName(fullName) {
+      const key = String(fullName || '');
+      if (parsedNameCache[key]) return parsedNameCache[key];
+
+      let baseName = key.trim();
+      let floor = "";
+      let category = "";
+
+      const catMatch = baseName.match(CAT_REGEX);
+      if (catMatch) {
+        category = catMatch[1].trim();
+        baseName = baseName.substring(0, baseName.length - catMatch[0].length).trim();
+      }
+
+      const floorMatch = baseName.match(FLOOR_REGEX);
+      if (floorMatch && floorMatch[1]) {
+        floor = floorMatch[1].trim().toUpperCase();
+        baseName = baseName.substring(0, baseName.length - floorMatch[0].length).trim();
+      }
+
+      baseName = baseName.replace(/[\-\_\(\（\s]+$/, '').trim();
+      if (!baseName) baseName = key.trim();
+
+      let subTask = "一般";
+      if (floor && category) subTask = `${floor} ${category}`;
+      else if (floor) subTask = floor;
+      else if (category) subTask = category;
+
+      const res = { baseName, subTask };
+      parsedNameCache[key] = res;
+      return res;
+    }
+
+    function getLocalDateStr(dateInput) {
+      const d = dateInput ? new Date(dateInput) : new Date();
+      if (isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function isRecordToday(timeStr, todayLocalStr) {
+      if (!timeStr) return false;
+      return getLocalDateStr(timeStr) === todayLocalStr;
+    }
+
+    const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined';
+    const welcomeInput = document.getElementById('welcomeNameInput');
+    
+    const savedUser = localStorage.getItem('toilet_user_name');
+    if (savedUser) {
+      welcomeInput.value = savedUser;
+      document.getElementById('btnText').innerText = `繼續巡檢`;
+    }
+
+    function updateAvatar() {
+      const name = getUserName();
+      if (name) document.getElementById('userAvatar').innerText = name.charAt(0);
+    }
+
+    /**
+     * 統一後端呼叫層：自動支援「GAS 內建環境」與「GitHub Pages Fetch 跨域環境」
+     */
+    async function callBackend(action, payload = {}) {
+      if (isGAS) {
+        return new Promise((resolve, reject) => {
+          if (action === 'init') {
+            google.script.run.withSuccessHandler(toilets => {
+              google.script.run.withSuccessHandler(history => {
+                resolve({ success: true, toilets: toilets || [], history: history || [] });
+              }).withFailureHandler(reject).getUploadHistory();
+            }).withFailureHandler(reject).getToiletList();
+          } else if (action === 'history') {
+            google.script.run.withSuccessHandler(history => {
+              resolve({ success: true, history: history || [] });
+            }).withFailureHandler(reject).getUploadHistory();
+          } else if (action === 'uploadDataBatch') {
+            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).uploadDataBatch(payload);
+          } else {
+            reject(new Error('未知的 GAS 呼叫: ' + action));
+          }
+        });
+      }
+
+      const apiUrl = getGasApiUrl();
+      if (!apiUrl) {
+        throw new Error('尚未設定 GAS 後端網址，請點擊「設定後端連線網址」');
+      }
+
+      if (action === 'init' || action === 'history') {
+        const sep = apiUrl.includes('?') ? '&' : '?';
+        const res = await fetch(`${apiUrl}${sep}action=${action}`, { method: 'GET', redirect: 'follow' });
+        return await res.json();
+      } else {
+        // 使用 text/plain 送出 POST JSON，避開 iOS Safari CORS preflight OPTIONS 請求失敗問題
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action, payload }),
+          redirect: 'follow'
+        });
+        return await res.json();
+      }
+    }
+
+    window.addEventListener('load', () => {
+      // 強制清除任何殘留的舊版 Service Worker 快取（解決舊版霧玻璃殘留）
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (let reg of regs) reg.unregister();
+        }).catch(() => {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+      }
+
+      // 1. 優先從手機 LocalStorage 秒讀名冊（0.05 秒瞬開，免乾等試算表）
+      try {
+        const cachedToilets = localStorage.getItem('toilet_master_cache_v2');
+        const cachedHist = localStorage.getItem('toilet_history_cache_v2');
+        if (cachedToilets) {
+          const parsed = JSON.parse(cachedToilets);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allData = parsed;
+            isDataLoaded = true;
+            allData.forEach(r => parseToiletName(r[3]));
+            updateMasterCountBadge();
+            autoSelectDefault();
+          }
+        }
+        if (cachedHist) {
+          const parsedH = JSON.parse(cachedHist);
+          if (Array.isArray(parsedH)) allHistory = parsedH;
+        }
+      } catch (e) {
+        console.warn('讀取本地快取失敗:', e);
+      }
+
+      // 2. 背景靜默向伺服器更新最新名冊與歷史紀錄
+      fetchDataInBackground(false);
+    });
+
+    function updateMasterCountBadge() {
+      const badge = document.getElementById('masterCountBadge');
+      if (badge && allData.length > 0) {
+        badge.innerText = `共 ${allData.length} 筆公廁`;
+      }
+    }
+
+    async function forceSyncMasterData() {
+      showToast('正在從雲端同步最新公廁名冊...');
+      await fetchDataInBackground(true);
+    }
+
+    async function fetchDataInBackground(showSuccessToast = false) {
+      try {
+        if (!isGAS && !getGasApiUrl()) {
+          if (!isDataLoaded) {
+            // 離線展示預設資料
+            allData = [
+              ['重點公廁', '南投市', 'M010000001', '南投市中山公園女廁', '南投市公所'],
+              ['重點公廁', '南投市', 'M010000002', '南投市中山公園男廁', '南投市公所'],
+              ['列管公廁', '中寮鄉', 'M080000011', '中寮鄉公所1F-女廁', '中寮鄉公所'],
+              ['列管公廁', '中寮鄉', 'M080000012', '中寮鄉公所1F-男廁', '中寮鄉公所']
+            ];
+            isDataLoaded = true;
+            updateMasterCountBadge();
+            autoSelectDefault();
+          }
+          return;
+        }
+
+        const res = await callBackend('init');
+        if (res && res.success) {
+          const hadDataBefore = isDataLoaded;
+          if (Array.isArray(res.toilets) && res.toilets.length > 0) {
+            allData = res.toilets;
+            isDataLoaded = true;
+            allData.forEach(r => parseToiletName(r[3]));
+            updateMasterCountBadge();
+            try { localStorage.setItem('toilet_master_cache_v2', JSON.stringify(allData)); } catch (e) {}
+            if (!hadDataBefore || !selectedToilet) autoSelectDefault();
+          }
+          if (Array.isArray(res.history)) {
+            allHistory = res.history;
+            try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+            if (document.getElementById('app-main').style.display !== 'none') {
+              renderHistory(allHistory);
+              if (currentGroupRows.length > 0 && selectedToilet) {
+                const activeRow = currentGroupRows.find(r => r[2] === selectedToilet.id) || currentGroupRows[0];
+                renderSubTasks(activeRow);
+              }
+            }
+          }
+          const btn = document.getElementById('enterBtn');
+          if (btn.disabled) {
+            btn.disabled = false;
+            enterApp();
+          }
+          if (showSuccessToast) showToast(`同步完成 (${allData.length} 筆公廁)`);
+        }
+      } catch (e) {
+        console.error('背景同步失敗:', e);
+        const btn = document.getElementById('enterBtn');
+        if (btn.disabled) {
+          btn.disabled = false;
+          document.getElementById('btnText').innerText = '啟動系統';
+          document.getElementById('btnSpinner').style.display = 'none';
+          showToast('連線失敗，請檢查網路或後端網址設定', 'error');
+        }
+      }
+    }
+
+    async function refreshHistoryFromSheet() {
+      try {
+        if (!isGAS && !getGasApiUrl()) return;
+        const res = await callBackend('history');
+        if (res && res.success && Array.isArray(res.history)) {
+          allHistory = res.history;
+          try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+          if (!document.getElementById('page-history').classList.contains('hidden')) {
+            renderHistory(allHistory);
+          }
+        }
+      } catch (e) {
+        console.warn('更新紀錄失敗:', e);
+      }
+    }
+
+    function getUserName() { return welcomeInput.value.trim(); }
+
+    function enterApp() {
+      const name = getUserName();
+      if (!name) return showToast('請輸入巡檢員姓名', 'error');
+      
+      localStorage.setItem('toilet_user_name', name);
+      updateAvatar();
+
+      if (!isDataLoaded) {
+        document.getElementById('enterBtn').disabled = true;
+        document.getElementById('btnText').innerText = '系統讀取中...';
+        document.getElementById('btnSpinner').style.display = 'inline-block';
+        fetchDataInBackground(false);
+        return;
+      }
+
+      const welcomeScreen = document.getElementById('welcome-screen');
+      const appMain = document.getElementById('app-main');
+      
+      welcomeScreen.style.opacity = '0';
+      setTimeout(() => {
+        welcomeScreen.style.display = 'none';
+        appMain.style.display = 'block';
+        appMain.style.opacity = '1';
+        renderHistory(allHistory);
+      }, 200);
+    }
+
+    function editProfile() {
+      const newName = prompt("請輸入新的巡檢員姓名：", getUserName());
+      if (newName && newName.trim() !== '') {
+        welcomeInput.value = newName.trim();
+        localStorage.setItem('toilet_user_name', newName.trim());
+        updateAvatar();
+        renderHistory(allHistory);
+        showToast('名字已更新');
+      }
+    }
+
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toastContainer');
+      if (toastTimer) clearTimeout(toastTimer);
+      toast.classList.remove('show');
+      void toast.offsetWidth;
+      
+      document.getElementById('toastMsg').innerText = msg;
+      document.getElementById('toastIcon').innerText = type === 'success' ? 'check_circle' : 'error';
+      document.getElementById('toastIcon').style.color = type === 'success' ? 'var(--theme-accent)' : 'var(--ios-red)';
+      
+      toast.classList.add('show');
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    function switchPage(pageId, title) {
+      document.getElementById('page-upload').classList.add('hidden');
+      document.getElementById('page-history').classList.add('hidden');
+      document.getElementById('page-' + pageId).classList.remove('hidden');
+      document.getElementById('pageTitle').innerText = title;
+      document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+      document.querySelector(`.tab-item[data-page="${pageId}"]`).classList.add('active');
+
+      if (pageId === 'history') refreshHistoryFromSheet();
+    }
+
+    document.getElementById('typeSegmented').addEventListener('click', e => {
+      if (e.target.classList.contains('segmented-item')) {
+        document.querySelectorAll('.segmented-item').forEach(el => el.classList.remove('active'));
+        e.target.classList.add('active');
+        selectedType = e.target.dataset.type;
+        updateTownshipButton();
+        resetAll();
+      }
+    });
+
+    function updateTownshipButton() {
+      const towns = [...new Set(allData.filter(r => r[0] === selectedType).map(r => r[1]))].sort();
+      document.getElementById('townshipText').innerText = towns.length > 0 ? towns[0] : '-- 無 --';
+    }
+
+    function openSheet(type) {
+      if (allData.length === 0) return showToast('資料尚未載入，請檢查連線設定', 'error');
+      let items = [];
+      if (type === 'township') {
+        items = [...new Set(allData.filter(r => r[0] === selectedType).map(r => r[1]))].sort();
+        if (items.length === 0) return showToast('無對應資料', 'error');
+        currentSheetType = 'township';
+      } else if (type === 'name') {
+        const townVal = document.getElementById('townshipText').innerText;
+        if (!townVal || townVal.includes('--')) return showToast('請先選擇鄉鎮', 'error');
+        
+        const groupRows = allData.filter(r => r[0] === selectedType && r[1] === townVal);
+        items = [...new Set(groupRows.map(r => parseToiletName(r[3]).baseName))].sort();
+        currentSheetType = 'name';
+      }
+      renderSheet(type === 'township' ? '選擇鄉鎮市' : '選擇公廁', items);
+    }
+
+    function renderSheet(title, items) {
+      const todayStr = getLocalDateStr();
+      const listHtml = items.map(item => {
+        let isDone = false;
+        if (currentSheetType === 'name') {
+          const group = allData.filter(r => r[0] === selectedType && r[1] === document.getElementById('townshipText').innerText && parseToiletName(r[3]).baseName === item);
+          isDone = group.length > 0 && group.every(r => allHistory.some(h => h.code === r[2] && isRecordToday(h.time, todayStr)));
+        }
+        return `<div class="sheet-item" onclick="selectSheetItem('${item.replace(/'/g, "\\'")}')">
+                  <span>${item}</span>${isDone ? '<span class="done-badge" style="background: var(--theme-accent); color: white; border-radius: 10px; padding: 4px 10px; font-size: 13px; font-weight: 800; margin-left: 10px;">全部完成</span>' : ''}
+                </div>`;
+      }).join('');
+
+      document.getElementById('bottomSheetContainer').innerHTML = `
+        <div class="bottom-sheet-overlay" id="sheetOverlay" onclick="closeSheet()">
+          <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">${title}</div>
+            ${currentSheetType === 'name' ? '<input class="sheet-search" placeholder="🔍 搜尋公廁名稱..." oninput="filterSheet(this.value)" />' : ''}
+            <div class="sheet-list">${listHtml}</div>
+          </div>
+        </div>`;
+      
+      setTimeout(() => document.getElementById('sheetOverlay').classList.add('show'), 10);
+    }
+
+    function closeSheet() {
+      const overlay = document.getElementById('sheetOverlay');
+      if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 220);
+      }
+    }
+
+    function filterSheet(q) { 
+      document.querySelectorAll('.sheet-item').forEach(el => {
+        el.style.display = el.innerText.includes(q) ? 'flex' : 'none';
+      }); 
+    }
+
+    function selectSheetItem(val) {
+      if (currentSheetType === 'township') {
+        document.getElementById('townshipText').innerText = val;
+        resetAll();
+      } else {
+        document.getElementById('nameText').innerText = val;
+        document.getElementById('nameText').classList.remove('placeholder');
+        const townVal = document.getElementById('townshipText').innerText;
+        
+        currentGroupRows = allData.filter(r => r[0] === selectedType && r[1] === townVal && parseToiletName(r[3]).baseName === val);
+        if (currentGroupRows.length > 0) renderSubTasks(currentGroupRows[0]);
+      }
+      closeSheet();
+    }
+
+    function renderSubTasks(activeRow) {
+      const section = document.getElementById('subTaskSection');
+      const scroll = document.getElementById('subTaskScroll');
+      
+      if (currentGroupRows.length <= 1) { 
+        section.classList.add('hidden'); 
+        setTargetToilet(activeRow); 
+        return; 
+      }
+      
+      section.classList.remove('hidden');
+      const todayStr = getLocalDateStr();
+      
+      const subTaskCounts = {};
+      currentGroupRows.forEach(r => {
+        const parsed = parseToiletName(r[3]);
+        subTaskCounts[parsed.subTask] = (subTaskCounts[parsed.subTask] || 0) + 1;
+      });
+
+      const subTaskIndices = {};
+
+      scroll.innerHTML = currentGroupRows.map(r => {
+        const isDone = allHistory.some(h => h.code === r[2] && isRecordToday(h.time, todayStr));
+        const isActive = (activeRow && activeRow[2] === r[2]);
+        const parsed = parseToiletName(r[3]);
+        let labelText = parsed.subTask;
+        
+        if (subTaskCounts[parsed.subTask] > 1) {
+          subTaskIndices[parsed.subTask] = (subTaskIndices[parsed.subTask] || 0) + 1;
+          const codeSuffix = r[2] ? r[2].slice(-3) : subTaskIndices[parsed.subTask];
+          labelText = `${labelText} (${codeSuffix})`;
+        } else if (labelText === '一般' && currentGroupRows.length > 1) {
+          labelText = r[3];
+        }
+
+        return `<div class="sub-task-pill ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}" onclick="switchSubTask('${r[2]}')">
+                  ${labelText} ${isDone ? '<i class="material-icons" style="font-size:16px;">check_circle</i>' : ''}
+                </div>`;
+      }).join('');
+      
+      setTargetToilet(activeRow);
+    }
+
+    function switchSubTask(id) {
+      const row = currentGroupRows.find(r => r[2] === id);
+      if (row) {
+        photoQueue.forEach(p => { if (p.status !== 'success') p.selected = false; });
+        syncPreviewSelectionState();
+        renderSubTasks(row);
+      }
+    }
+
+    function setTargetToilet(row) {
+      if (!row || !Array.isArray(row)) return;
+      selectedToilet = { type: row[0], township: row[1], id: row[2], name: row[3], unit: row[4] || '' };
+      document.getElementById('code').textContent = selectedToilet.id;
+      document.getElementById('unit').textContent = selectedToilet.unit;
+      document.getElementById('info').classList.remove('hidden');
+      document.getElementById('photoSection').classList.remove('hidden');
+      updateFloatingBar();
+    }
+
+    function autoSelectDefault() {
+      let defType = '重點公廁', defTown = '南投市';
+      let row = allData.find(r => r[0] === defType && r[1] === defTown);
+      if (!row && allData.length > 0) {
+        row = allData[0];
+        defType = row[0];
+        defTown = row[1];
+      }
+      if (row) {
+        selectedType = defType;
+        document.querySelectorAll('.segmented-item').forEach(el => {
+          el.classList.toggle('active', el.dataset.type === defType);
+        });
+        document.getElementById('townshipText').innerText = defTown;
+        const parsed = parseToiletName(row[3]);
+        document.getElementById('nameText').innerText = parsed.baseName;
+        document.getElementById('nameText').classList.remove('placeholder');
+        
+        currentGroupRows = allData.filter(r => r[0] === defType && r[1] === defTown && parseToiletName(r[3]).baseName === parsed.baseName);
+        renderSubTasks(row);
+      }
+    }
+
+    function resetAll() {
+      selectedToilet = null;
+      currentGroupRows = [];
+      document.getElementById('nameText').innerText = '請選擇公廁';
+      document.getElementById('nameText').classList.add('placeholder');
+      document.getElementById('subTaskSection').classList.add('hidden');
+      document.getElementById('info').classList.add('hidden');
+      
+      photoQueue.forEach(p => { if (p.status !== 'success') p.selected = false; });
+      if (photoQueue.length === 0) {
+        document.getElementById('photoSection').classList.add('hidden');
+      }
+      syncPreviewSelectionState();
+    }
+
+    // 全選 / 取消全選未上傳照片
+    document.getElementById('selectAllBtn').addEventListener('click', () => {
+      const pendingPhotos = photoQueue.filter(p => p.status !== 'success');
+      if (pendingPhotos.length === 0) return;
+      
+      const allSelected = pendingPhotos.every(p => p.selected);
+      pendingPhotos.forEach(p => p.selected = !allSelected);
+      syncPreviewSelectionState();
+    });
+
+    // 區間快速連選：在 100~200 張照片中，只需點第一張與最後一張，按下「區間連選」即可自動把中間未上傳照片全勾起來！
+    document.getElementById('rangeSelectBtn').addEventListener('click', () => {
+      let firstIdx = -1, lastIdx = -1;
+      for (let i = 0; i < photoQueue.length; i++) {
+        if (photoQueue[i].status !== 'success' && photoQueue[i].selected) {
+          if (firstIdx === -1) firstIdx = i;
+          lastIdx = i;
+        }
+      }
+      if (firstIdx === -1 || firstIdx === lastIdx) {
+        showToast('請先點選「起始照片」與「結束照片」至少 2 張，再按區間連選', 'error');
+        return;
+      }
+      let newlySelected = 0;
+      for (let i = firstIdx; i <= lastIdx; i++) {
+        if (photoQueue[i].status !== 'success' && !photoQueue[i].selected) {
+          photoQueue[i].selected = true;
+          newlySelected++;
+        }
+      }
+      syncPreviewSelectionState();
+      showToast(`已自動連選第 #${firstIdx + 1} ~ #${lastIdx + 1} 張照片！`);
+    });
+
+    /**
+     * 專為 iOS 100~200 張照片設計的極速硬體加速縮圖產生器：
+     * 優先使用瀏覽器底層 C++ createImageBitmap 進行背景縮放（避免載入 48MP 原圖撐爆 WebKit 記憶體），
+     * 若格式不支援則自動降級為 Image + 強制清空 src 釋放記憶體。
+     */
+    async function generateThumbnailFast(file, maxW = 160, quality = 0.55) {
+      if (typeof createImageBitmap === 'function') {
+        try {
+          const bmp = await createImageBitmap(file);
+          const ratio = Math.min(maxW / bmp.width, maxW / bmp.height, 1);
+          const cw = Math.max(1, Math.round(bmp.width * ratio));
+          const ch = Math.max(1, Math.round(bmp.height * ratio));
+          const canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bmp, 0, 0, cw, ch);
+          bmp.close(); // 立即釋放底層圖像記憶體！
+
+          return await new Promise(resolve => {
+            canvas.toBlob(blob => {
+              canvas.width = 0; canvas.height = 0;
+              resolve(blob ? URL.createObjectURL(blob) : '');
+            }, 'image/jpeg', quality);
+          });
+        } catch (err) {
+          // 若部分特殊 HEIC 在舊版 iOS createImageBitmap 失敗，自動走下方 Image fallback
+        }
+      }
+
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          try {
+            const canvas = document.createElement('canvas');
+            const ratio = Math.min(maxW / img.width, maxW / img.height, 1);
+            canvas.width = Math.max(1, Math.round(img.width * ratio));
+            canvas.height = Math.max(1, Math.round(img.height * ratio));
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            img.src = ''; // 強制釋放 iOS WebKit Image 解碼快取
+            canvas.toBlob(blob => {
+              canvas.width = 0; canvas.height = 0;
+              resolve(blob ? URL.createObjectURL(blob) : '');
+            }, 'image/jpeg', quality);
+          } catch (e) {
+            img.src = '';
+            resolve('');
+          }
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          img.src = '';
+          resolve('');
+        };
+        img.src = url;
+      });
+    }
+
+    // ==================== 支援 100~200 張照片的多通道併發載入處理器 ====================
+    const hiddenPhotoInput = document.getElementById('hiddenPhotoInput');
+
+    async function handleSelectedFiles() {
+      if (isProcessingFiles) return;
+      const fileList = hiddenPhotoInput.files;
+      if (!fileList || fileList.length === 0) return;
+
+      isProcessingFiles = true;
+      const files = Array.from(fileList).sort((a, b) => a.lastModified - b.lastModified);
+      const total = files.length;
+
+      const loader = document.getElementById('globalLoader');
+      const loaderText = document.getElementById('globalLoaderText');
+      const loaderFill = document.getElementById('loaderProgressFill');
+      const loaderPercent = document.getElementById('loaderPercentText');
+
+      loaderText.innerText = `正在載入照片 (0 / ${total})...`;
+      loaderFill.style.width = '0%';
+      loaderPercent.innerText = '0%';
+      loader.classList.add('show');
+
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      let skippedCount = 0;
+      let completed = 0;
+      const results = new Array(total);
+      const CONCURRENCY = 3; // 3 通道平行處理：速度提升 3 倍，同時控制在 iOS 安全記憶體水位內
+      let cursor = 0;
+
+      async function worker() {
+        while (cursor < total) {
+          const idx = cursor++;
+          const thumbUrl = await generateThumbnailFast(files[idx], 160, 0.55);
+          results[idx] = thumbUrl;
+          completed++;
+
+          const pct = Math.round((completed / total) * 100);
+          loaderText.innerText = `正在載入照片 (${completed} / ${total})...`;
+          loaderFill.style.width = `${pct}%`;
+          loaderPercent.innerText = `${pct}%`;
+        }
+      }
+
+      const workers = [];
+      for (let w = 0; w < Math.min(CONCURRENCY, total); w++) {
+        workers.push(worker());
+      }
+      await Promise.all(workers);
+
+      const newItems = [];
+      for (let i = 0; i < total; i++) {
+        if (!results[i]) {
+          skippedCount++;
+          continue;
+        }
+        const item = {
+          id: Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 6),
+          file: files[i],
+          previewUrl: results[i],
+          selected: false,
+          status: 'pending',
+          uploadedTo: '' // 記錄上傳到哪個公廁，保留打勾時一目了然
+        };
+        photoQueue.push(item);
+        newItems.push(item);
+      }
+
+      loader.classList.remove('show');
+      hiddenPhotoInput.value = '';
+      isProcessingFiles = false;
+      document.getElementById('photoSection').classList.remove('hidden');
+
+      if (skippedCount > 0) {
+        showToast(`已載入 ${newItems.length} 張 (略過 ${skippedCount} 張損壞圖檔)`, 'error');
+      } else {
+        showToast(`已極速載入 ${newItems.length} 張照片！`);
+      }
+      appendPreviewItems(newItems);
+    }
+
+    hiddenPhotoInput.addEventListener('change', handleSelectedFiles);
+    window.addEventListener('focus', () => {
+      setTimeout(() => {
+        if (!isProcessingFiles && hiddenPhotoInput.files && hiddenPhotoInput.files.length > 0) {
+          handleSelectedFiles();
+        }
+      }, 300);
+    });
+
+    /**
+     * 上傳前按需壓縮（同時支援 createImageBitmap 記憶體安全釋放）
+     */
+    async function compressImageOnDemand(file, maxW = 1024, quality = 0.55) {
+      if (typeof createImageBitmap === 'function') {
+        try {
+          const bmp = await createImageBitmap(file);
+          let nw = bmp.width, nh = bmp.height;
+          if (nw > maxW || nh > maxW) {
+            if (nw >= nh) { nh = Math.round(nh * maxW / nw); nw = maxW; }
+            else { nw = Math.round(nw * maxW / nh); nh = maxW; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = nw; canvas.height = nh;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bmp, 0, 0, nw, nh);
+          bmp.close();
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          canvas.width = 0; canvas.height = 0;
+          if (dataUrl && dataUrl !== 'data:,') return dataUrl;
+        } catch (e) {}
+      }
+
+      return new Promise((resolve, reject) => {
+        const tempUrl = URL.createObjectURL(file);
+        const img = new Image(); 
+        img.onload = () => {
+          URL.revokeObjectURL(tempUrl);
+          try {
+            const canvas = document.createElement('canvas'); 
+            let nw = img.width, nh = img.height;
+            if (nw > maxW || nh > maxW) {
+              if (nw >= nh) { nh = Math.round(nh * maxW / nw); nw = maxW; }
+              else { nw = Math.round(nw * maxW / nh); nh = maxW; }
+            }
+            canvas.width = nw; canvas.height = nh; 
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, nw, nh);
+            img.src = '';
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            canvas.width = 0; canvas.height = 0;
+            if (!dataUrl || dataUrl === 'data:,') {
+              reject(new Error('圖檔壓縮輸出空白，手機記憶體可能不足'));
+            } else {
+              resolve(dataUrl);
+            }
+          } catch (err) {
+            img.src = '';
+            reject(err);
+          }
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(tempUrl);
+          img.src = '';
+          reject(new Error(`無法解碼圖檔 (${file.name})`));
+        }; 
+        img.src = tempUrl;
+      });
+    }
+
+    function updateFloatingBar() {
+      const pendingPhotos = photoQueue.filter(p => p.status !== 'success');
+      const uploadedPhotos = photoQueue.filter(p => p.status === 'success');
+      const selectedCount = pendingPhotos.filter(p => p.selected).length;
+      
+      const floatingBar = document.getElementById('floatingUploadBar');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const uploadBtnText = document.getElementById('uploadBtnText');
+      const selectAllBtn = document.getElementById('selectAllBtn');
+      const poolSummaryText = document.getElementById('poolSummaryText');
+
+      if (poolSummaryText) {
+        poolSummaryText.innerText = `共 ${photoQueue.length} 張 (已傳 ${uploadedPhotos.length} / 待傳 ${pendingPhotos.length})`;
+      }
+      
+      if (selectedCount > 0 && !isUploading) {
+        if (uploadBtnText) uploadBtnText.innerText = `上傳 ${selectedCount} 張照片`;
+        floatingBar.classList.add('show');
+        uploadBtn.disabled = false;
+      } else if (!isUploading) {
+        floatingBar.classList.remove('show');
+        uploadBtn.disabled = true;
+      }
+      
+      if (selectAllBtn) {
+        if (pendingPhotos.length > 0 && selectedCount === pendingPhotos.length) {
+          selectAllBtn.innerHTML = '<i class="material-icons">remove_done</i> 取消全選';
+        } else {
+          selectAllBtn.innerHTML = '<i class="material-icons">done_all</i> 全選';
+        }
+      }
+    }
+
+    /**
+     * 高效能增量 DOM 建立與狀態原地更新（避免 200 張照片每次勾選或上傳時全部銷毀重建 DOM）
+     */
+    function createPreviewCardDOM(item, index) {
+      const div = document.createElement('div');
+      div.dataset.photoId = item.id;
+      const isUploaded = (item.status === 'success');
+      div.className = `preview-item ${(item.selected || isUploaded) ? '' : 'unselected'} ${item.selected && !isUploaded ? 'selected-card' : ''}`;
+
+      const img = document.createElement('img');
+      img.src = item.previewUrl;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+
+      const idxBadge = document.createElement('span');
+      idxBadge.className = 'photo-index-badge';
+      idxBadge.innerText = `#${index + 1}`;
+
+      if (isUploaded) {
+        const overlay = buildUploadedOverlayDOM(item.uploadedTo);
+        div.append(img, idxBadge, overlay);
+        return div;
+      }
+
+      let pressTimer, isLongPress = false;
+      img.addEventListener('touchstart', () => {
+        isLongPress = false;
+        pressTimer = setTimeout(() => { isLongPress = true; openLightbox(item.previewUrl); }, 450);
+      }, { passive: true });
+      img.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
+      img.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = item.selected;
+
+      img.addEventListener('click', (e) => {
+        if (isLongPress || item.status === 'success') { e.preventDefault(); return; }
+        item.selected = !item.selected;
+        cb.checked = item.selected;
+        div.classList.toggle('unselected', !item.selected);
+        div.classList.toggle('selected-card', item.selected);
+        updateFloatingBar();
+      });
+
+      const delBtn = document.createElement('span');
+      delBtn.className = 'delete-photo';
+      delBtn.innerHTML = '✕';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx2 = photoQueue.indexOf(item);
+        if (idx2 > -1) {
+          if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+          photoQueue.splice(idx2, 1);
+          div.remove();
+          refreshAllIndexBadges();
+          updateFloatingBar();
+          if (photoQueue.length === 0) {
+            document.getElementById('photoEmpty').classList.remove('hidden');
+          }
+        }
+      });
+
+      div.append(img, idxBadge, cb, delBtn);
+      return div;
+    }
+
+    function buildUploadedOverlayDOM(uploadedToText) {
+      const overlay = document.createElement('div');
+      overlay.className = 'uploaded-overlay';
+      overlay.innerHTML = `
+        <div class="uploaded-check"><i class="material-icons">check</i></div>
+        ${uploadedToText ? `<div class="uploaded-target-tag">${uploadedToText}</div>` : ''}
+      `;
+      return overlay;
+    }
+
+    function appendPreviewItems(newItems) {
+      const c = document.getElementById('preview');
+      const emptyEl = document.getElementById('photoEmpty');
+      if (photoQueue.length > 0) emptyEl.classList.add('hidden');
+
+      const frag = document.createDocumentFragment();
+      const startIndex = photoQueue.length - newItems.length;
+      newItems.forEach((item, i) => {
+        frag.appendChild(createPreviewCardDOM(item, startIndex + i));
+      });
+      c.appendChild(frag);
+      updateFloatingBar();
+    }
+
+    function refreshAllIndexBadges() {
+      const cards = document.querySelectorAll('#preview .preview-item');
+      cards.forEach((card, i) => {
+        const badge = card.querySelector('.photo-index-badge');
+        if (badge) badge.innerText = `#${i + 1}`;
+      });
+    }
+
+    /**
+     * 原地同步卡片勾選與已上傳打勾狀態（0 閃爍、不重新載入圖片）
+     */
+    function syncPreviewSelectionState() {
+      const c = document.getElementById('preview');
+      const emptyEl = document.getElementById('photoEmpty');
+      if (photoQueue.length === 0) {
+        emptyEl.classList.remove('hidden');
+        updateFloatingBar();
+        return;
+      }
+      emptyEl.classList.add('hidden');
+
+      photoQueue.forEach((item) => {
+        const card = c.querySelector(`.preview-item[data-photo-id="${item.id}"]`);
+        if (!card) return;
+
+        const isUploaded = (item.status === 'success');
+        card.className = `preview-item ${(item.selected || isUploaded) ? '' : 'unselected'} ${item.selected && !isUploaded ? 'selected-card' : ''}`;
+
+        const cb = card.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = item.selected;
+
+        if (isUploaded && !card.querySelector('.uploaded-overlay')) {
+          if (cb) cb.remove();
+          const delBtn = card.querySelector('.delete-photo');
+          if (delBtn) delBtn.remove();
+          card.appendChild(buildUploadedOverlayDOM(item.uploadedTo));
+          // 照片已上傳完成，釋放原始大檔 File 參照，只保留輕量 160px 預覽縮圖，省下巨量記憶體！
+          item.file = null;
+        }
+      });
+
+      updateFloatingBar();
+    }
+
+    function openLightbox(url) {
+      document.getElementById('lightboxImg').src = url;
+      document.getElementById('lightbox').classList.add('show');
+    }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('show'); }
+
+    document.getElementById('cancelUploadBtn').addEventListener('click', () => {
+      if (isUploading) {
+        cancelRequested = true;
+        document.getElementById('progressStatusText').innerText = '正在取消上傳...';
+      }
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+      const user = getUserName();
+      if (!user) {
+        showToast('請先設定巡檢員姓名', 'error');
+        return;
+      }
+      if (!selectedToilet || !selectedToilet.id) {
+        showToast('⚠️ 請先選擇要上傳的公廁名稱！', 'error');
+        return;
+      }
+      if (!isGAS && !getGasApiUrl()) {
+        promptApiUrlConfig();
+        return;
+      }
+
+      const toUploadQueue = photoQueue.filter(p => p.selected && p.status !== 'success');
+      if (toUploadQueue.length === 0) return;
+
+      const btn = document.getElementById('uploadBtn'); 
+      const btnText = document.getElementById('uploadBtnText');
+      const spinner = document.getElementById('uploadSpinner');
+      const icon = document.getElementById('uploadIcon');
+      const cancelBtn = document.getElementById('cancelUploadBtn');
+      
+      const progressBox = document.getElementById('uploadProgressBox');
+      const progressBarFill = document.getElementById('progressBarFill');
+      const progressStatusText = document.getElementById('progressStatusText');
+      const progressPercentText = document.getElementById('progressPercentText');
+
+      isUploading = true;
+      cancelRequested = false;
+
+      btn.disabled = true; 
+      icon.style.display = 'none';
+      spinner.style.display = 'inline-block';
+      cancelBtn.style.display = 'block';
+      progressBox.style.display = 'block';
+      progressBarFill.style.width = '0%';
+      progressPercentText.innerText = '0%';
+
+      // 每批 4 張：兼顧行動網路穩定度與傳輸速度
+      const BATCH_SIZE = 4;
+      let totalUploaded = 0;
+      let sharedSeqNo = null;
+      let sharedFolderId = null;
+      let accumulatedUrls = [];
+      let lastErrorMsg = '';
+
+      // 取得簡短廁間標籤，顯示在打勾遮罩下方，讓使用者清楚知道這張傳去哪裡
+      const parsedTarget = parseToiletName(selectedToilet.name);
+      const shortTargetLabel = parsedTarget.subTask !== '一般' ? parsedTarget.subTask : parsedTarget.baseName.slice(-5);
+
+      try {
+        for (let i = 0; i < toUploadQueue.length; i += BATCH_SIZE) {
+          if (cancelRequested) {
+            showToast('⚠️ 已取消剩餘批次上傳', 'error');
+            break;
+          }
+
+          const currentBatch = toUploadQueue.slice(i, i + BATCH_SIZE);
+          const currentBatchNumber = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(toUploadQueue.length / BATCH_SIZE);
+          const isFinalBatch = (i + BATCH_SIZE) >= toUploadQueue.length;
+
+          btnText.innerText = `壓縮處理中...`;
+          progressStatusText.innerText = `壓縮照片 (${i + 1}~${Math.min(i + BATCH_SIZE, toUploadQueue.length)}張)...`;
+          
+          const base64List = await Promise.all(
+            currentBatch.map(item => compressImageOnDemand(item.file, 1024, 0.55))
+          );
+
+          btnText.innerText = totalBatches > 1 ? `傳輸第 ${currentBatchNumber}/${totalBatches} 批...` : `極速傳輸中...`;
+          progressStatusText.innerText = `正在上傳至雲端 (${i + 1}~${Math.min(i + BATCH_SIZE, toUploadQueue.length)} / ${toUploadQueue.length})...`;
+          
+          let retryCount = 0;
+          let batchSuccess = false;
+
+          while (retryCount < 3 && !batchSuccess && !cancelRequested) {
+            try {
+              if (retryCount > 0) {
+                progressStatusText.innerText = `網路重試第 ${retryCount} 次...`;
+              }
+
+              const batchRes = await callBackend('uploadDataBatch', {
+                type: selectedToilet.type,
+                township: selectedToilet.township,
+                id: selectedToilet.id,
+                name: selectedToilet.name,
+                unit: selectedToilet.unit,
+                user: user,
+                photos: base64List,
+                existingFolderId: sharedFolderId,
+                existingSeqNo: sharedSeqNo,
+                startIndex: i,
+                isFinalBatch: isFinalBatch,
+                totalPhotoCount: toUploadQueue.length,
+                accumulatedUrls: accumulatedUrls
+              });
+
+              if (batchRes && batchRes.success) {
+                batchSuccess = true;
+                if (batchRes.seqNo !== undefined) sharedSeqNo = batchRes.seqNo;
+                if (batchRes.folderId) sharedFolderId = batchRes.folderId;
+                if (Array.isArray(batchRes.photoUrls)) {
+                  accumulatedUrls = accumulatedUrls.concat(batchRes.photoUrls);
+                }
+              } else {
+                lastErrorMsg = (batchRes && batchRes.message) ? batchRes.message : '伺服器回傳失敗';
+                retryCount++;
+              }
+            } catch (err) {
+              lastErrorMsg = err && err.message ? err.message : String(err);
+              retryCount++;
+            }
+          }
+
+          if (batchSuccess) {
+            currentBatch.forEach(p => {
+              p.status = 'success';
+              p.selected = false;
+              p.uploadedTo = shortTargetLabel;
+            });
+            totalUploaded += currentBatch.length;
+
+            const percent = Math.round((totalUploaded / toUploadQueue.length) * 100);
+            progressBarFill.style.width = `${percent}%`;
+            progressPercentText.innerText = `${percent}%`;
+            progressStatusText.innerText = `已上傳 ${totalUploaded}/${toUploadQueue.length} 張`;
+
+            // 原地將剛傳完的照片變成綠色打勾 + 標註公廁名稱，不重繪整個網格
+            syncPreviewSelectionState();
+          } else {
+            showToast(`⚠️ ${lastErrorMsg || '部分照片重試失敗'}`, 'error');
+            break;
+          }
+        }
+
+        if (totalUploaded > 0) {
+          showToast(`✅ ${selectedToilet.id} 上傳 ${totalUploaded} 張成功！`);
+          allHistory.unshift({ 
+            no: sharedSeqNo || '-', 
+            code: selectedToilet.id, 
+            name: selectedToilet.name, 
+            user: user, 
+            time: new Date().toISOString() 
+          });
+          try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+          checkGroupCompletion();
+        }
+
+      } catch (error) {
+        console.error('Upload Process Error:', error);
+        showToast('錯誤：' + (error.message || '傳輸過程發生例外'), 'error');
+      } finally {
+        isUploading = false;
+        cancelRequested = false;
+
+        btnText.innerText = '上傳選取照片';
+        icon.style.display = 'inline-block';
+        spinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        progressBox.style.display = 'none';
+        progressBarFill.style.width = '0%';
+
+        updateFloatingBar();
+      }
+    });
+
+    function checkGroupCompletion() {
+      if (currentGroupRows.length > 0) {
+        const todayStr = getLocalDateStr();
+        const nextTarget = currentGroupRows.find(r => !allHistory.some(h => h.code === r[2] && isRecordToday(h.time, todayStr)));
+        
+        if (nextTarget) {
+          setTimeout(() => {
+            const nextParsed = parseToiletName(nextTarget[3]);
+            showToast(`已自動切換至：${nextParsed.subTask}`);
+            switchSubTask(nextTarget[2]);
+          }, 600);
+        } else {
+          const currentRow = currentGroupRows.find(r => selectedToilet && r[2] === selectedToilet.id) || currentGroupRows[0];
+          renderSubTasks(currentRow);
+          setTimeout(() => {
+            showToast(`🎉 該地點所有廁間已巡檢完畢!`);
+          }, 500);
+        }
+      }
+    }
+
+    function renderHistory(data) {
+      const tbody = document.getElementById('historyBody');
+      const empty = document.getElementById('historyEmpty');
+      document.querySelectorAll('.skeleton-card').forEach(el => el.remove());
+      const currentUser = getUserName();
+      let filtered = currentFilter === 'currentUser' ? data.filter(item => item.user === currentUser) : data;
+      if (currentFilter !== 'all' && currentFilter !== 'currentUser') {
+        filtered = filtered.filter(item => { 
+          const m = allData.find(r => r[3] === item.name); 
+          return m && m[0] === currentFilter; 
+        });
+      }
+
+      if (!filtered.length) { 
+        tbody.innerHTML = ''; 
+        empty.classList.remove('hidden'); 
+        return; 
+      }
+      empty.classList.add('hidden');
+      
+      tbody.innerHTML = filtered.map(r => `
+        <div class="history-card">
+          <div class="hist-left">
+            <div class="hist-badge">${r.no}</div>
+            <div class="hist-info">
+              <div class="hist-name">${r.name}</div>
+              <div class="hist-code"><i class="material-icons" style="font-size:16px;">tag</i>${r.code}</div>
+            </div>
+          </div>
+          <div class="hist-right">
+            <span class="hist-user-chip"><div class="hist-user-avatar">${(r.user||'測').charAt(0)}</div>${r.user||''}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('filterBar').addEventListener('click', e => {
+      if (e.target.classList.contains('filter-chip')) {
+        document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+        e.target.classList.add('active');
+        currentFilter = e.target.dataset.filter;
+        renderHistory(allHistory);
+      }
+    });
+
+  </script>
+</body>
+</html>
