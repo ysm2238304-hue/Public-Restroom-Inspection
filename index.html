@@ -1621,7 +1621,7 @@
       appendPreviewItems(newItems);
     }
 
-    async function compressImageOnDemand(file, maxW = 1024, quality = 0.55) {
+    async function compressImageOnDemand(file, maxW = 960, quality = 0.48) {
       if (typeof createImageBitmap === 'function') {
         try {
           const bmp = await createImageBitmap(file);
@@ -1890,97 +1890,178 @@
       progressBarFill.style.width = '0%';
       progressPercentText.innerText = '0%';
 
-      const BATCH_SIZE = 4;
+      const BATCH_SIZE = 3;
       let totalUploaded = 0;
       let sharedSeqNo = null;
       let sharedFolderId = null;
+      let sharedFolderUrl = null;
       let accumulatedUrls = [];
+      let hasError = false;
       let lastErrorMsg = '';
 
       const parsedTarget = parseToiletName(selectedToilet.name);
       const shortTargetLabel = parsedTarget.subTask !== '一般' ? parsedTarget.subTask : parsedTarget.baseName.slice(-5);
 
       try {
+        // 切割所有待上傳照片批次
+        const batches = [];
         for (let i = 0; i < toUploadQueue.length; i += BATCH_SIZE) {
-          if (cancelRequested) {
-            showToast('⚠️ 已取消剩餘批次上傳', 'error');
-            break;
-          }
+          batches.push({
+            startIndex: i,
+            items: toUploadQueue.slice(i, i + BATCH_SIZE)
+          });
+        }
 
-          const currentBatch = toUploadQueue.slice(i, i + BATCH_SIZE);
-          const currentBatchNumber = Math.floor(i / BATCH_SIZE) + 1;
-          const totalBatches = Math.ceil(toUploadQueue.length / BATCH_SIZE);
-          const isFinalBatch = (i + BATCH_SIZE) >= toUploadQueue.length;
+        // =================================================================
+        // 第一步：先傳第 1 批，快速建立公廁專屬資料夾並取得 folderId 與序號
+        // =================================================================
+        btnText.innerText = '建立雲端資料夾...';
+        progressStatusText.innerText = '正在建立公廁資料夾與處理首批照片...';
+        
+        const firstBatch = batches[0];
+        const firstBase64List = await Promise.all(
+          firstBatch.items.map(item => compressImageOnDemand(item.file, 960, 0.48))
+        );
 
-          btnText.innerText = `壓縮處理中...`;
-          progressStatusText.innerText = `壓縮照片 (${i + 1}~${Math.min(i + BATCH_SIZE, toUploadQueue.length)}張)...`;
-          
-          const base64List = await Promise.all(
-            currentBatch.map(item => compressImageOnDemand(item.file, 1024, 0.55))
-          );
+        const firstRes = await callBackend('uploadDataBatch', {
+          type: selectedToilet.type,
+          township: selectedToilet.township,
+          id: selectedToilet.id,
+          name: selectedToilet.name,
+          unit: selectedToilet.unit,
+          user: user,
+          photos: firstBase64List,
+          existingFolderId: null,
+          existingSeqNo: null,
+          startIndex: 0,
+          isFinalBatch: batches.length === 1,
+          totalPhotoCount: toUploadQueue.length,
+          accumulatedUrls: []
+        });
 
-          btnText.innerText = totalBatches > 1 ? `傳輸第 ${currentBatchNumber}/${totalBatches} 批...` : `極速傳輸中...`;
-          progressStatusText.innerText = `正在上傳至雲端 (${i + 1}~${Math.min(i + BATCH_SIZE, toUploadQueue.length)} / ${toUploadQueue.length})...`;
-          
-          let retryCount = 0;
-          let batchSuccess = false;
+        if (!firstRes || !firstRes.success) {
+          throw new Error(firstRes ? firstRes.message : '首批建立資料夾失敗');
+        }
 
-          while (retryCount < 3 && !batchSuccess && !cancelRequested) {
-            try {
-              if (retryCount > 0) {
-                progressStatusText.innerText = `網路重試第 ${retryCount} 次...`;
-              }
+        sharedFolderId = firstRes.folderId;
+        sharedFolderUrl = firstRes.folderUrl;
+        sharedSeqNo = firstRes.seqNo;
+        if (Array.isArray(firstRes.photoUrls)) {
+          accumulatedUrls = accumulatedUrls.concat(firstRes.photoUrls);
+        }
 
-              const batchRes = await callBackend('uploadDataBatch', {
-                type: selectedToilet.type,
-                township: selectedToilet.township,
-                id: selectedToilet.id,
-                name: selectedToilet.name,
-                unit: selectedToilet.unit,
-                user: user,
-                photos: base64List,
-                existingFolderId: sharedFolderId,
-                existingSeqNo: sharedSeqNo,
-                startIndex: i,
-                isFinalBatch: isFinalBatch,
-                totalPhotoCount: toUploadQueue.length,
-                accumulatedUrls: accumulatedUrls
-              });
+        firstBatch.items.forEach(p => {
+          p.status = 'success';
+          p.selected = false;
+          p.uploadedTo = shortTargetLabel;
+        });
+        totalUploaded += firstBatch.items.length;
+        syncPreviewSelectionState();
 
-              if (batchRes && batchRes.success) {
-                batchSuccess = true;
-                if (batchRes.seqNo !== undefined) sharedSeqNo = batchRes.seqNo;
-                if (batchRes.folderId) sharedFolderId = batchRes.folderId;
-                if (Array.isArray(batchRes.photoUrls)) {
-                  accumulatedUrls = accumulatedUrls.concat(batchRes.photoUrls);
+        let pct = Math.round((totalUploaded / toUploadQueue.length) * 100);
+        progressBarFill.style.width = pct + '%';
+        progressPercentText.innerText = pct + '%';
+        progressStatusText.innerText = '已完成 ' + totalUploaded + ' / ' + toUploadQueue.length + ' 張';
+
+        // =================================================================
+        // 第二步：雙通道平行高速傳輸剩餘批次 (Dual-channel Concurrency = 2)
+        // =================================================================
+        if (batches.length > 1) {
+          btnText.innerText = '雙通道極速上傳中...';
+          let batchCursor = 1;
+          const CONCURRENCY = 2;
+
+          async function uploadWorker(workerId) {
+            while (batchCursor < batches.length && !cancelRequested && !hasError) {
+              const currentBatchIdx = batchCursor++;
+              const batch = batches[currentBatchIdx];
+              
+              progressStatusText.innerText = '雙通道高速上傳中 (' + totalUploaded + ' / ' + toUploadQueue.length + ' 張)...';
+
+              const base64List = await Promise.all(
+                batch.items.map(item => compressImageOnDemand(item.file, 960, 0.48))
+              );
+
+              let retryCount = 0;
+              let batchOk = false;
+
+              while (retryCount < 3 && !batchOk && !cancelRequested) {
+                try {
+                  const bRes = await callBackend('uploadDataBatch', {
+                    type: selectedToilet.type,
+                    township: selectedToilet.township,
+                    id: selectedToilet.id,
+                    name: selectedToilet.name,
+                    unit: selectedToilet.unit,
+                    user: user,
+                    photos: base64List,
+                    existingFolderId: sharedFolderId,
+                    existingSeqNo: sharedSeqNo,
+                    startIndex: batch.startIndex,
+                    isFinalBatch: false,
+                    totalPhotoCount: toUploadQueue.length,
+                    accumulatedUrls: []
+                  });
+
+                  if (bRes && bRes.success) {
+                    batchOk = true;
+                    if (Array.isArray(bRes.photoUrls)) {
+                      accumulatedUrls = accumulatedUrls.concat(bRes.photoUrls);
+                    }
+                  } else {
+                    lastErrorMsg = bRes ? bRes.message : '伺服器錯誤';
+                    retryCount++;
+                  }
+                } catch (err) {
+                  lastErrorMsg = err && err.message ? err.message : String(err);
+                  retryCount++;
                 }
-              } else {
-                lastErrorMsg = (batchRes && batchRes.message) ? batchRes.message : '伺服器回傳失敗';
-                retryCount++;
               }
-            } catch (err) {
-              lastErrorMsg = err && err.message ? err.message : String(err);
-              retryCount++;
+
+              if (batchOk) {
+                batch.items.forEach(p => {
+                  p.status = 'success';
+                  p.selected = false;
+                  p.uploadedTo = shortTargetLabel;
+                });
+                totalUploaded += batch.items.length;
+                syncPreviewSelectionState();
+
+                let curPct = Math.round((totalUploaded / toUploadQueue.length) * 100);
+                progressBarFill.style.width = curPct + '%';
+                progressPercentText.innerText = curPct + '%';
+                progressStatusText.innerText = '已完成 ' + totalUploaded + ' / ' + toUploadQueue.length + ' 張';
+              } else {
+                hasError = true;
+                break;
+              }
             }
           }
 
-          if (batchSuccess) {
-            currentBatch.forEach(p => {
-              p.status = 'success';
-              p.selected = false;
-              p.uploadedTo = shortTargetLabel;
+          const workers = [];
+          for (let w = 0; w < Math.min(CONCURRENCY, batches.length - 1); w++) {
+            workers.push(uploadWorker(w));
+          }
+          await Promise.all(workers);
+
+          // =================================================================
+          // 第三步：一次性寫入試算表記錄 (單次寫入僅需 0.5 秒)
+          // =================================================================
+          if (!hasError && totalUploaded > 0 && !cancelRequested) {
+            btnText.innerText = '寫入巡檢紀錄...';
+            progressStatusText.innerText = '正在寫入試算表...';
+            await callBackend('recordLog', {
+              type: selectedToilet.type,
+              township: selectedToilet.township,
+              id: selectedToilet.id,
+              name: selectedToilet.name,
+              unit: selectedToilet.unit,
+              user: user,
+              totalPhotoCount: totalUploaded,
+              folderUrl: sharedFolderUrl,
+              allPhotoUrls: accumulatedUrls,
+              dateSeq: sharedSeqNo
             });
-            totalUploaded += currentBatch.length;
-
-            const percent = Math.round((totalUploaded / toUploadQueue.length) * 100);
-            progressBarFill.style.width = `${percent}%`;
-            progressPercentText.innerText = `${percent}%`;
-            progressStatusText.innerText = `已上傳 ${totalUploaded}/${toUploadQueue.length} 張`;
-
-            syncPreviewSelectionState();
-          } else {
-            showToast(`⚠️ ${lastErrorMsg || '部分照片重試失敗'}`, 'error');
-            break;
           }
         }
 
