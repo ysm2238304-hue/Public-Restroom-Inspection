@@ -614,32 +614,32 @@
     
     .toast {
       position: fixed;
-      top: 50%;
+      top: calc(78px + env(safe-area-inset-top, 0px));
       left: 50%;
-      transform: translate(-50%, -50%) scale(0.85);
+      transform: translateX(-50%) translateY(-20px) scale(0.92);
       opacity: 0;
-      pointer-events: none;
+      pointer-events: none !important;
       background-color: #1C2541;
-      border: 3.5px solid #38BDF8;
-      border-radius: 24px;
-      padding: 18px 26px;
+      border: 3px solid #38BDF8;
+      border-radius: 20px;
+      padding: 12px 22px;
       z-index: 99999;
       font-weight: 900;
-      font-size: 16px;
+      font-size: 15px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+      gap: 10px;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.18s ease;
       color: #FFFFFF;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 6px 0 #0284C7;
-      max-width: 88vw;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65), 0 4px 0 #0284C7;
+      max-width: 90vw;
       text-align: center;
     }
     .toast.show {
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(-50%) translateY(0) scale(1);
       opacity: 1;
-      pointer-events: auto;
+      pointer-events: none !important;
     }
 
     .skeleton-card { display: flex; gap: 16px; padding: 18px; border: 3px solid var(--border-subtle); background-color: var(--bg-surface); border-radius: 20px; margin-bottom: 12px; }
@@ -1053,20 +1053,21 @@
       fetchDataInBackground(false);
     });
 
+    // 僅在視窗返回且確定有選入照片檔案時才啟動處理，徹底解決「還沒選照片就跳進度條」的 Bug
     window.addEventListener('focus', () => {
-      if (isPickerAwaiting && !isProcessingFiles) {
-        showGlobalLoadingImmediate("正在從相簿接收照片，請稍候...");
-      }
+      setTimeout(() => {
+        const input = document.getElementById('hiddenPhotoInput');
+        if (isPickerAwaiting && !isProcessingFiles && input && input.files && input.files.length > 0) {
+          handleSelectedFiles({ target: input });
+        } else {
+          isPickerAwaiting = false;
+        }
+      }, 300);
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        if (isPickerAwaiting && !isProcessingFiles) {
-          showGlobalLoadingImmediate("正在從相簿接收照片，請稍候...");
-        }
-        if (isDataLoaded && !isUploading) {
-          refreshHistoryFromSheet();
-        }
+      if (document.visibilityState === 'visible' && isDataLoaded && !isUploading) {
+        refreshHistoryFromSheet();
       }
     });
 
@@ -1194,7 +1195,7 @@
       document.getElementById('toastIcon').style.color = type === 'success' ? '#34D399' : '#EF4444';
       
       toast.classList.add('show');
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
     }
 
     function switchPage(pageId, title) {
@@ -1478,7 +1479,7 @@
       container.appendChild(input);
 
       isPickerAwaiting = true;
-      showToast('📸 請在相簿勾選照片，按右上角勾勾後請稍候系統讀取', 'success');
+      // 直接開啟相簿，不彈出干擾視線的預告提示
 
       input.click();
     }
