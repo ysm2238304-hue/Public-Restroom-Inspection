@@ -48,7 +48,7 @@
       background-color: var(--bg-page);
     }
 
-    /* 頂部安全區域純白實心保護層：徹底阻絕 iOS 狀態列下方系統預設霧面感 */
+    /* 頂部安全區域純白實心保護層 */
     .ios-safe-top-solid {
       width: 100%;
       padding-top: env(safe-area-inset-top, 0px);
@@ -79,7 +79,6 @@
       pointer-events: none;
     }
 
-    /* 歡迎畫面：100% 實心純色 */
     #welcome-screen {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -222,23 +221,24 @@
     .btn-primary:disabled { background: var(--mat-thin); color: var(--label-tertiary); border: 1px solid var(--border-light); cursor: not-allowed; }
 
     .btn-secondary {
-      font-size: 15px; padding: 12px 10px; width: 100%; border-radius: 12px; border: 1px solid var(--border-light);
+      font-size: 14px; padding: 11px 8px; width: 100%; border-radius: 12px; border: 1px solid var(--border-light);
       background-color: var(--mat-thin); color: var(--theme-primary); font-weight: 700; cursor: pointer;
-      display: flex; justify-content: center; align-items: center; gap: 5px; user-select: none;
+      display: flex; justify-content: center; align-items: center; gap: 4px; user-select: none;
     }
     .btn-secondary:active { transform: scale(0.97); background-color: var(--border-dim); }
     .btn-secondary.orange { color: #D97706; background-color: #FEF3C7; border-color: #FDE68A; }
+    .btn-secondary.slate { color: #475569; background-color: #F1F5F9; border-color: #CBD5E1; }
 
     .pool-toolbar {
-      padding: 14px 14px 4px;
+      padding: 12px 14px 4px;
       display: flex; flex-direction: column; gap: 8px;
     }
     .pool-toolbar-row {
-      display: flex; gap: 8px; width: 100%;
+      display: flex; gap: 6px; width: 100%;
     }
     .pool-stats-bar {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 14px 0; font-size: 13px; color: var(--label-secondary); font-weight: 600;
+      padding: 6px 14px 0; font-size: 12px; color: var(--label-secondary); font-weight: 600;
     }
 
     .floating-upload-bar {
@@ -443,17 +443,19 @@
     .skeleton-badge { width: 42px; height: 42px; border-radius: 12px; background-color: var(--border-dim); }
     .skeleton-line { height: 16px; border-radius: 6px; background-color: var(--border-dim); margin-bottom: 8px; }
 
+    /* 全域加載提示與進度遮罩 */
     #globalLoader {
-      position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.78);
+      position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.82);
       z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center;
       opacity: 0; pointer-events: none; transition: opacity 0.15s;
     }
     #globalLoader.show { opacity: 1; pointer-events: auto; }
     .loader-card {
       background-color: #FFFFFF; color: var(--label-primary);
-      width: 84%; max-width: 320px; border-radius: 22px; padding: 26px 22px;
+      width: 86%; max-width: 330px; border-radius: 22px; padding: 26px 22px;
       display: flex; flex-direction: column; align-items: center;
       border: 1px solid var(--border-light);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.25);
     }
     .global-spinner { width: 38px; height: 38px; border: 4px solid var(--border-light); border-radius: 50%; border-top-color: var(--theme-accent); animation: spin 0.75s linear infinite; margin-bottom: 14px; }
     .loader-progress-wrap { width: 100%; margin-top: 12px; }
@@ -563,19 +565,22 @@
           <div class="pool-toolbar">
             <div class="pool-toolbar-row">
               <button type="button" id="selectPhotoBtn" class="btn-secondary" style="flex: 2; margin: 0;" onclick="triggerPhotoPick()">
-                <i class="material-icons">add_circle</i> 載入照片 (支援百張以上)
+                <i class="material-icons">add_circle</i> 載入照片 (支援百張)
               </button>
-              <button type="button" id="rangeSelectBtn" class="btn-secondary orange" style="flex: 1.2;">
+              <button type="button" id="reverseOrderBtn" class="btn-secondary slate" style="flex: 1.1;" onclick="reversePhotoQueueOrder()">
+                <i class="material-icons">swap_vert</i> 順序反轉
+              </button>
+              <button type="button" id="rangeSelectBtn" class="btn-secondary orange" style="flex: 1.1;">
                 <i class="material-icons">linear_scale</i> 區間連選
               </button>
-              <button type="button" id="selectAllBtn" class="btn-secondary" style="flex: 1;">
+              <button type="button" id="selectAllBtn" class="btn-secondary" style="flex: 0.9;">
                 <i class="material-icons">done_all</i> 全選
               </button>
             </div>
           </div>
 
           <div class="pool-stats-bar" id="poolStatsBar">
-            <span>💡 提示：點選首張與末張再按「區間連選」可一次勾選整段照片</span>
+            <span>⏱️ 排序：先巡照片排前面 (#1, #2...) ｜ 點首尾兩張按「區間連選」整段勾選</span>
           </div>
 
           <div class="preview-grid" id="preview">
@@ -653,7 +658,7 @@
   <div id="globalLoader">
     <div class="loader-card">
       <div class="global-spinner"></div>
-      <div id="globalLoaderText" style="font-weight: 800; font-size: 17px; text-align: center;">正在極速處理照片...</div>
+      <div id="globalLoaderText" style="font-weight: 800; font-size: 17px; text-align: center; line-height: 1.4;">正在接收相簿照片...</div>
       <div class="loader-progress-wrap">
         <div class="loader-progress-bg">
           <div class="loader-progress-fill" id="loaderProgressFill"></div>
@@ -664,15 +669,8 @@
   </div>
 
   <script>
-    /**
-     * 固定內建後端連線網址
-     */
     const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbx-r0uMfTIS5NmcYi7b9GF03cS7DwRRj9rqAtKgXrEiV4fwdss4AytpeUeC9VrGSQAA-A/exec';
 
-    /**
-     * 安全本地存儲包裝層：
-     * 防止在嚴格沙盒 (Canvas 預覽、無痕或 iframe) 下因 localStorage 存取限制拋出 SecurityError 導致腳本停止
-     */
     const memoryStore = {};
     const safeStorage = {
       getItem(key) {
@@ -698,6 +696,7 @@
     let toastTimer = null;
     let isUploading = false, cancelRequested = false;
     let isProcessingFiles = false;
+    let isPickerAwaiting = false;
 
     const CAT_REGEX = /(?:[\-\_\(\（\s]*)(男廁|女廁|無障礙廁所|親子廁所|混合廁所|性別友善廁所|無障礙|哺集乳室|多功能廁所|廁所)[\)\）\s]*$/i;
     const FLOOR_REGEX = /(?:[\-\_\(\（\s]*)([B|b]\d+\s*(?:F|f|樓)?|\d+\s*(?:F|f|樓)|[一二三四五六七八九十]+\s*樓|[地|頂]下?\d*\s*樓?)[\)\）\s]*$/i;
@@ -827,11 +826,9 @@
           const parsedH = JSON.parse(cachedHist);
           if (Array.isArray(parsedH)) allHistory = parsedH;
         }
-      } catch (e) {
-        console.warn('讀取本地快取失敗:', e);
-      }
+      } catch (e) {}
 
-      // 2. 備份預設名冊（確保即使在 Canvas 沙盒中無法連外網，也能立即預覽完整介面）
+      // 2. 備份預設名冊（確保離線時也能載入基礎資料）
       if (!isDataLoaded) {
         allData = [
           ['重點公廁', '南投市', 'M010000001', '南投市中山公園女廁', '南投市公所'],
@@ -852,15 +849,37 @@
         autoSelectDefault();
       }
 
-      // 3. 背景嘗試向伺服器更新最新名冊
       fetchDataInBackground(false);
     });
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && isDataLoaded && !isUploading) {
-        refreshHistoryFromSheet();
+    // 視窗切換與焦點監聽：當使用者在相簿點勾勾返回時，第一時間彈出載入遮罩，避免以為當機
+    window.addEventListener('focus', () => {
+      if (isPickerAwaiting && !isProcessingFiles) {
+        showGlobalLoadingImmediate("正在從相簿接收照片，請稍候...");
       }
     });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (isPickerAwaiting && !isProcessingFiles) {
+          showGlobalLoadingImmediate("正在從相簿接收照片，請稍候...");
+        }
+        if (isDataLoaded && !isUploading) {
+          refreshHistoryFromSheet();
+        }
+      }
+    });
+
+    function showGlobalLoadingImmediate(msgText) {
+      const loader = document.getElementById('globalLoader');
+      const loaderText = document.getElementById('globalLoaderText');
+      const loaderFill = document.getElementById('loaderProgressFill');
+      const loaderPercent = document.getElementById('loaderPercentText');
+      loaderText.innerText = msgText || "正在處理照片...";
+      loaderFill.style.width = '15%';
+      loaderPercent.innerText = '讀取中...';
+      loader.classList.add('show');
+    }
 
     function updateMasterCountBadge() {
       const badge = document.getElementById('masterCountBadge');
@@ -906,7 +925,7 @@
           if (showSuccessToast) showToast(`同步完成 (${allData.length} 筆公廁)`);
         }
       } catch (e) {
-        console.warn('背景連線伺服器失敗 (使用離線/快取名冊):', e);
+        console.warn('背景連線伺服器失敗:', e);
         const btn = document.getElementById('enterBtn');
         if (btn.disabled) {
           btn.disabled = false;
@@ -929,9 +948,7 @@
             renderSubTasks(activeRow);
           }
         }
-      } catch (e) {
-        console.warn('更新紀錄失敗:', e);
-      }
+      } catch (e) {}
     }
 
     function getUserName() { return welcomeInput.value.trim(); }
@@ -1209,7 +1226,30 @@
       showToast(`已自動連選第 #${firstIdx + 1} ~ #${lastIdx + 1} 張照片！`);
     });
 
+    /**
+     * 一鍵反轉暫存池照片順序（最舊/最新互換）
+     */
+    function reversePhotoQueueOrder() {
+      if (photoQueue.length <= 1) return;
+      photoQueue.reverse();
+      const c = document.getElementById('preview');
+      const cards = Array.from(c.querySelectorAll('.preview-item'));
+      cards.reverse();
+      cards.forEach(card => c.appendChild(card));
+      refreshAllIndexBadges();
+      syncPreviewSelectionState();
+      showToast('已反轉照片排列順序');
+    }
+
+    // ============================================================================
+    // 【解決勾勾點 5-6 次與 100+ 張照片載入邏輯】
+    // 1. 點選「載入照片」時，預先跳出溫馨提示並標註狀態
+    // 2. 移除 accept="image/*"，讓 iOS 系統直接釋放原始檔案，不強制做耗時的轉碼
+    // 3. 讀入時自動根據照片「拍攝時間（舊到新）」排序，保證先巡的排在第一張！
+    // ============================================================================
     function triggerPhotoPick() {
+      if (isProcessingFiles) return;
+
       const container = document.getElementById('fileInputContainer');
       container.innerHTML = '';
       const input = document.createElement('input');
@@ -1218,6 +1258,10 @@
       input.multiple = true;
       input.addEventListener('change', handleSelectedFiles);
       container.appendChild(input);
+
+      isPickerAwaiting = true;
+      showToast('📸 請在相簿勾選照片，按右上角勾勾後請稍候 2~5 秒系統讀取', 'success');
+
       input.click();
     }
 
@@ -1276,27 +1320,37 @@
     }
 
     async function handleSelectedFiles(event) {
+      isPickerAwaiting = false;
       if (isProcessingFiles) return;
+
       const input = event.target || document.getElementById('hiddenPhotoInput');
       const fileList = input.files;
-      if (!fileList || fileList.length === 0) return;
+      if (!fileList || fileList.length === 0) {
+        document.getElementById('globalLoader').classList.remove('show');
+        return;
+      }
 
       isProcessingFiles = true;
       const total = fileList.length;
 
+      // 立即更新全域遮罩
       const loader = document.getElementById('globalLoader');
       const loaderText = document.getElementById('globalLoaderText');
       const loaderFill = document.getElementById('loaderProgressFill');
       const loaderPercent = document.getElementById('loaderPercentText');
 
-      loaderText.innerText = `已成功接收 ${total} 張照片，正在準備載入...`;
-      loaderFill.style.width = '0%';
+      loaderText.innerText = `已接收 ${total} 張照片，依拍攝順序智能排列中...`;
+      loaderFill.style.width = '5%';
       loaderPercent.innerText = '0%';
       loader.classList.add('show');
 
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-      const files = Array.from(fileList);
+      // 【核心邏輯 1】：依拍攝時間 (lastModified) 由舊到新（早到晚）自動排序！
+      // 確保「先巡的公廁照片排在最前 (#1, #2...)」，不再倒序
+      const files = Array.from(fileList).sort((a, b) => {
+        return (a.lastModified || 0) - (b.lastModified || 0);
+      });
 
       let skippedCount = 0;
       let completed = 0;
@@ -1312,7 +1366,7 @@
           completed++;
 
           const pct = Math.round((completed / total) * 100);
-          loaderText.innerText = `正在極速解析照片 (${completed} / ${total})...`;
+          loaderText.innerText = `正在高速縮圖處理中 (${completed} / ${total})...`;
           loaderFill.style.width = `${pct}%`;
           loaderPercent.innerText = `${pct}%`;
         }
@@ -1349,7 +1403,7 @@
       if (skippedCount > 0) {
         showToast(`已載入 ${newItems.length} 張 (略過 ${skippedCount} 張損壞檔案)`, 'error');
       } else {
-        showToast(`🎉 成功載入全部 ${newItems.length} 張照片！`);
+        showToast(`🎉 成功載入全部 ${newItems.length} 張照片 (已照巡檢順序排好)！`);
       }
       appendPreviewItems(newItems);
     }
