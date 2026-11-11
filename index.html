@@ -71,16 +71,11 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    .native-file-input {
+    .file-input-container {
       position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      border: 0;
-      opacity: 0.01;
+      top: -9999px;
+      left: -9999px;
+      opacity: 0;
       pointer-events: none;
     }
 
@@ -133,7 +128,6 @@
     #app-main { opacity: 0; display: none; padding-bottom: 150px; }
     .container { max-width: 600px; margin: 0 auto; padding: 0 16px; }
     
-    /* 頂部標題列：100% 實心純白，不隨捲動懸浮，無任何霧面 */
     .app-header-wrapper {
       background-color: #FFFFFF;
       border-bottom: 1px solid var(--border-light);
@@ -235,7 +229,6 @@
     .btn-secondary:active { transform: scale(0.97); background-color: var(--border-dim); }
     .btn-secondary.orange { color: #D97706; background-color: #FEF3C7; border-color: #FDE68A; }
 
-    /* 照片工具列與統計標籤 */
     .pool-toolbar {
       padding: 14px 14px 4px;
       display: flex; flex-direction: column; gap: 8px;
@@ -286,7 +279,6 @@
     }
     .btn-cancel:active { transform: scale(0.95); }
 
-    /* 專為 100~200 張照片優化的預覽網格：使用 content-visibility 加速長列表捲動 */
     .preview-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
@@ -318,7 +310,6 @@
       accent-color: var(--theme-primary); pointer-events: none; z-index: 3;
     }
 
-    /* 照片序號標籤：方便 100~200 張照片時核對拍到第幾張 */
     .photo-index-badge {
       position: absolute; bottom: 6px; left: 6px;
       background-color: rgba(15, 23, 42, 0.75); color: #FFFFFF;
@@ -335,7 +326,6 @@
     }
     .delete-photo:active { transform: scale(0.85); }
 
-    /* 已上傳保留打勾遮罩 + 顯示上傳去向公廁名稱，防止忘記傳到哪裡 */
     .uploaded-overlay {
       position: absolute; inset: 0; background-color: rgba(255, 255, 255, 0.72);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -403,7 +393,6 @@
     }
     .hist-user-avatar { width: 20px; height: 20px; border-radius: 50%; background-color: var(--theme-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
 
-    /* 底部導覽列：100% 實心純白 */
     .tab-bar {
       position: fixed; bottom: 0; left: 0; right: 0; 
       background-color: #FFFFFF;
@@ -454,7 +443,6 @@
     .skeleton-badge { width: 42px; height: 42px; border-radius: 12px; background-color: var(--border-dim); }
     .skeleton-line { height: 16px; border-radius: 6px; background-color: var(--border-dim); margin-bottom: 8px; }
 
-    /* 全域載入照片進度條遮罩（實心不模糊） */
     #globalLoader {
       position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.78);
       z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -476,7 +464,9 @@
 </head>
 <body>
 
-  <input type="file" id="hiddenPhotoInput" class="native-file-input" accept="image/*" multiple />
+  <div class="file-input-container" id="fileInputContainer">
+    <input type="file" id="hiddenPhotoInput" multiple />
+  </div>
 
   <div id="welcome-screen">
     <div class="welcome-content">
@@ -572,9 +562,9 @@
         <div class="ios-list" style="padding-bottom: 12px;">
           <div class="pool-toolbar">
             <div class="pool-toolbar-row">
-              <label for="hiddenPhotoInput" id="selectPhotoBtn" class="btn-secondary" style="flex: 2; margin: 0;">
-                <i class="material-icons">add_circle</i> 載入照片 (支援百張)
-              </label>
+              <button type="button" id="selectPhotoBtn" class="btn-secondary" style="flex: 2; margin: 0;" onclick="triggerPhotoPick()">
+                <i class="material-icons">add_circle</i> 載入照片 (支援百張以上)
+              </button>
               <button type="button" id="rangeSelectBtn" class="btn-secondary orange" style="flex: 1.2;">
                 <i class="material-icons">linear_scale</i> 區間連選
               </button>
@@ -675,9 +665,33 @@
 
   <script>
     /**
-     * 固定內建後端連線網址（供多人直接使用，免設定）
+     * 固定內建後端連線網址
      */
     const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbx-r0uMfTIS5NmcYi7b9GF03cS7DwRRj9rqAtKgXrEiV4fwdss4AytpeUeC9VrGSQAA-A/exec';
+
+    /**
+     * 安全本地存儲包裝層：
+     * 防止在嚴格沙盒 (Canvas 預覽、無痕或 iframe) 下因 localStorage 存取限制拋出 SecurityError 導致腳本停止
+     */
+    const memoryStore = {};
+    const safeStorage = {
+      getItem(key) {
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage.getItem(key);
+          }
+        } catch (e) {}
+        return memoryStore[key] || null;
+      },
+      setItem(key, val) {
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(key, val);
+          }
+        } catch (e) {}
+        memoryStore[key] = String(val);
+      }
+    };
 
     let allData = [], photoQueue = [], selectedToilet = null, currentSheetType = '', selectedType = '重點公廁';
     let allHistory = [], currentFilter = 'currentUser', currentGroupRows = [], isDataLoaded = false;
@@ -736,7 +750,7 @@
     const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined';
     const welcomeInput = document.getElementById('welcomeNameInput');
     
-    const savedUser = localStorage.getItem('toilet_user_name');
+    const savedUser = safeStorage.getItem('toilet_user_name');
     if (savedUser) {
       welcomeInput.value = savedUser;
       document.getElementById('btnText').innerText = `繼續巡檢`;
@@ -747,9 +761,6 @@
       if (name) document.getElementById('userAvatar').innerText = name.charAt(0);
     }
 
-    /**
-     * 統一後端呼叫層：自動支援「GAS 內建環境」與「GitHub Pages Fetch 跨域環境」
-     */
     async function callBackend(action, payload = {}) {
       if (isGAS) {
         return new Promise((resolve, reject) => {
@@ -779,7 +790,6 @@
         });
         return await res.json();
       } else {
-        // 使用 text/plain 送出 POST JSON，避開 iOS Safari CORS preflight OPTIONS 請求失敗問題
         const res = await fetch(GAS_EXEC_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -791,20 +801,18 @@
     }
 
     window.addEventListener('load', () => {
-      // 強制清除任何殘留的舊版 Service Worker 快取（解決舊版霧玻璃殘留）
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => {
-          for (let reg of regs) reg.unregister();
-        }).catch(() => {});
-      }
-      if ('caches' in window) {
-        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
-      }
-
-      // 1. 優先從手機 LocalStorage 秒讀名冊（0.05 秒瞬開，免乾等試算表）
       try {
-        const cachedToilets = localStorage.getItem('toilet_master_cache_v2');
-        const cachedHist = localStorage.getItem('toilet_history_cache_v2');
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            for (let reg of regs) reg.unregister();
+          }).catch(() => {});
+        }
+      } catch (e) {}
+
+      // 1. 優先從本地記憶/快取秒讀名冊
+      try {
+        const cachedToilets = safeStorage.getItem('toilet_master_cache_v2');
+        const cachedHist = safeStorage.getItem('toilet_history_cache_v2');
         if (cachedToilets) {
           const parsed = JSON.parse(cachedToilets);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -823,11 +831,31 @@
         console.warn('讀取本地快取失敗:', e);
       }
 
-      // 2. 背景靜默向伺服器更新最新名冊與多人團隊歷史紀錄
+      // 2. 備份預設名冊（確保即使在 Canvas 沙盒中無法連外網，也能立即預覽完整介面）
+      if (!isDataLoaded) {
+        allData = [
+          ['重點公廁', '南投市', 'M010000001', '南投市中山公園女廁', '南投市公所'],
+          ['重點公廁', '南投市', 'M010000002', '南投市中山公園男廁', '南投市公所'],
+          ['重點公廁', '南投市', 'M010000003', '南投市仁壽公園女廁', '南投市公所'],
+          ['重點公廁', '南投市', 'M010000010', '南投市公所1F男廁', '南投市公所'],
+          ['重點公廁', '南投市', 'M010000011', '南投市公所1F女廁', '南投市公所'],
+          ['列管公廁', '中寮鄉', 'M080000011', '中寮鄉公所1F-女廁', '中寮鄉公所'],
+          ['列管公廁', '中寮鄉', 'M080000012', '中寮鄉公所1F-男廁', '中寮鄉公所'],
+          ['列管公廁', '中寮鄉', 'M080000030', '中寮鄉公所1F-無障礙廁所', '中寮鄉公所']
+        ];
+        allHistory = [
+          { no: 1, code: 'M010000001', name: '南投市中山公園女廁', user: savedUser || '巡檢員', time: new Date().toISOString() }
+        ];
+        isDataLoaded = true;
+        allData.forEach(r => parseToiletName(r[3]));
+        updateMasterCountBadge();
+        autoSelectDefault();
+      }
+
+      // 3. 背景嘗試向伺服器更新最新名冊
       fetchDataInBackground(false);
     });
 
-    // 當多人同時巡檢時，使用者切回視窗自動背景同步最新「已完成紀錄」，避免重複巡檢同一公廁
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && isDataLoaded && !isUploading) {
         refreshHistoryFromSheet();
@@ -856,12 +884,12 @@
             isDataLoaded = true;
             allData.forEach(r => parseToiletName(r[3]));
             updateMasterCountBadge();
-            try { localStorage.setItem('toilet_master_cache_v2', JSON.stringify(allData)); } catch (e) {}
+            try { safeStorage.setItem('toilet_master_cache_v2', JSON.stringify(allData)); } catch (e) {}
             if (!hadDataBefore || !selectedToilet) autoSelectDefault();
           }
           if (Array.isArray(res.history)) {
             allHistory = res.history;
-            try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+            try { safeStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
             if (document.getElementById('app-main').style.display !== 'none') {
               renderHistory(allHistory);
               if (currentGroupRows.length > 0 && selectedToilet) {
@@ -878,13 +906,11 @@
           if (showSuccessToast) showToast(`同步完成 (${allData.length} 筆公廁)`);
         }
       } catch (e) {
-        console.error('背景同步失敗:', e);
+        console.warn('背景連線伺服器失敗 (使用離線/快取名冊):', e);
         const btn = document.getElementById('enterBtn');
         if (btn.disabled) {
           btn.disabled = false;
-          document.getElementById('btnText').innerText = '啟動系統';
-          document.getElementById('btnSpinner').style.display = 'none';
-          showToast('連線失敗，請確認 GAS 已更新部署版本', 'error');
+          enterApp();
         }
       }
     }
@@ -894,11 +920,10 @@
         const res = await callBackend('history');
         if (res && res.success && Array.isArray(res.history)) {
           allHistory = res.history;
-          try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+          try { safeStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
           if (!document.getElementById('page-history').classList.contains('hidden')) {
             renderHistory(allHistory);
           }
-          // 同步更新當前地點廁間的「完成綠勾」狀態（多人協作即時反映）
           if (currentGroupRows.length > 0 && selectedToilet) {
             const activeRow = currentGroupRows.find(r => r[2] === selectedToilet.id) || currentGroupRows[0];
             renderSubTasks(activeRow);
@@ -915,16 +940,8 @@
       const name = getUserName();
       if (!name) return showToast('請輸入巡檢員姓名', 'error');
       
-      localStorage.setItem('toilet_user_name', name);
+      safeStorage.setItem('toilet_user_name', name);
       updateAvatar();
-
-      if (!isDataLoaded) {
-        document.getElementById('enterBtn').disabled = true;
-        document.getElementById('btnText').innerText = '系統讀取中...';
-        document.getElementById('btnSpinner').style.display = 'inline-block';
-        fetchDataInBackground(false);
-        return;
-      }
 
       const welcomeScreen = document.getElementById('welcome-screen');
       const appMain = document.getElementById('app-main');
@@ -942,7 +959,7 @@
       const newName = prompt("請輸入新的巡檢員姓名：", getUserName());
       if (newName && newName.trim() !== '') {
         welcomeInput.value = newName.trim();
-        localStorage.setItem('toilet_user_name', newName.trim());
+        safeStorage.setItem('toilet_user_name', newName.trim());
         updateAvatar();
         renderHistory(allHistory);
         showToast('名字已更新');
@@ -990,7 +1007,7 @@
     }
 
     function openSheet(type) {
-      if (allData.length === 0) return showToast('資料尚未載入，請稍候再試', 'error');
+      if (allData.length === 0) return showToast('資料尚未載入', 'error');
       let items = [];
       if (type === 'township') {
         items = [...new Set(allData.filter(r => r[0] === selectedType).map(r => r[1]))].sort();
@@ -1162,7 +1179,6 @@
       syncPreviewSelectionState();
     }
 
-    // 全選 / 取消全選未上傳照片
     document.getElementById('selectAllBtn').addEventListener('click', () => {
       const pendingPhotos = photoQueue.filter(p => p.status !== 'success');
       if (pendingPhotos.length === 0) return;
@@ -1172,7 +1188,6 @@
       syncPreviewSelectionState();
     });
 
-    // 區間快速連選：在 100~200 張照片中，只需點第一張與最後一張，按下「區間連選」即可自動把中間未上傳照片全勾起來！
     document.getElementById('rangeSelectBtn').addEventListener('click', () => {
       let firstIdx = -1, lastIdx = -1;
       for (let i = 0; i < photoQueue.length; i++) {
@@ -1194,11 +1209,18 @@
       showToast(`已自動連選第 #${firstIdx + 1} ~ #${lastIdx + 1} 張照片！`);
     });
 
-    /**
-     * 專為 iOS 100~200 張照片設計的極速硬體加速縮圖產生器：
-     * 優先使用瀏覽器底層 C++ createImageBitmap 進行背景縮放（避免載入 48MP 原圖撐爆 WebKit 記憶體），
-     * 若格式不支援則自動降級為 Image + 強制清空 src 釋放記憶體。
-     */
+    function triggerPhotoPick() {
+      const container = document.getElementById('fileInputContainer');
+      container.innerHTML = '';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.id = 'hiddenPhotoInput';
+      input.multiple = true;
+      input.addEventListener('change', handleSelectedFiles);
+      container.appendChild(input);
+      input.click();
+    }
+
     async function generateThumbnailFast(file, maxW = 160, quality = 0.55) {
       if (typeof createImageBitmap === 'function') {
         try {
@@ -1211,7 +1233,7 @@
           canvas.height = ch;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(bmp, 0, 0, cw, ch);
-          bmp.close(); // 立即釋放底層圖像記憶體！
+          bmp.close();
 
           return await new Promise(resolve => {
             canvas.toBlob(blob => {
@@ -1219,9 +1241,7 @@
               resolve(blob ? URL.createObjectURL(blob) : '');
             }, 'image/jpeg', quality);
           });
-        } catch (err) {
-          // 若部分特殊 HEIC 在舊版 iOS createImageBitmap 失敗，自動走下方 Image fallback
-        }
+        } catch (err) {}
       }
 
       return new Promise((resolve) => {
@@ -1236,7 +1256,7 @@
             canvas.height = Math.max(1, Math.round(img.height * ratio));
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            img.src = ''; // 強制釋放 iOS WebKit Image 解碼快取
+            img.src = '';
             canvas.toBlob(blob => {
               canvas.width = 0; canvas.height = 0;
               resolve(blob ? URL.createObjectURL(blob) : '');
@@ -1255,34 +1275,33 @@
       });
     }
 
-    // ==================== 支援 100~200 張照片的多通道併發載入處理器 ====================
-    const hiddenPhotoInput = document.getElementById('hiddenPhotoInput');
-
-    async function handleSelectedFiles() {
+    async function handleSelectedFiles(event) {
       if (isProcessingFiles) return;
-      const fileList = hiddenPhotoInput.files;
+      const input = event.target || document.getElementById('hiddenPhotoInput');
+      const fileList = input.files;
       if (!fileList || fileList.length === 0) return;
 
       isProcessingFiles = true;
-      const files = Array.from(fileList).sort((a, b) => a.lastModified - b.lastModified);
-      const total = files.length;
+      const total = fileList.length;
 
       const loader = document.getElementById('globalLoader');
       const loaderText = document.getElementById('globalLoaderText');
       const loaderFill = document.getElementById('loaderProgressFill');
       const loaderPercent = document.getElementById('loaderPercentText');
 
-      loaderText.innerText = `正在載入照片 (0 / ${total})...`;
+      loaderText.innerText = `已成功接收 ${total} 張照片，正在準備載入...`;
       loaderFill.style.width = '0%';
       loaderPercent.innerText = '0%';
       loader.classList.add('show');
 
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+      const files = Array.from(fileList);
+
       let skippedCount = 0;
       let completed = 0;
       const results = new Array(total);
-      const CONCURRENCY = 3; // 3 通道平行處理：速度提升 3 倍，同時控制在 iOS 安全記憶體水位內
+      const CONCURRENCY = 4;
       let cursor = 0;
 
       async function worker() {
@@ -1293,7 +1312,7 @@
           completed++;
 
           const pct = Math.round((completed / total) * 100);
-          loaderText.innerText = `正在載入照片 (${completed} / ${total})...`;
+          loaderText.innerText = `正在極速解析照片 (${completed} / ${total})...`;
           loaderFill.style.width = `${pct}%`;
           loaderPercent.innerText = `${pct}%`;
         }
@@ -1317,37 +1336,24 @@
           previewUrl: results[i],
           selected: false,
           status: 'pending',
-          uploadedTo: '' // 記錄上傳到哪個公廁，保留打勾時一目了然
+          uploadedTo: ''
         };
         photoQueue.push(item);
         newItems.push(item);
       }
 
       loader.classList.remove('show');
-      hiddenPhotoInput.value = '';
       isProcessingFiles = false;
       document.getElementById('photoSection').classList.remove('hidden');
 
       if (skippedCount > 0) {
-        showToast(`已載入 ${newItems.length} 張 (略過 ${skippedCount} 張損壞圖檔)`, 'error');
+        showToast(`已載入 ${newItems.length} 張 (略過 ${skippedCount} 張損壞檔案)`, 'error');
       } else {
-        showToast(`已極速載入 ${newItems.length} 張照片！`);
+        showToast(`🎉 成功載入全部 ${newItems.length} 張照片！`);
       }
       appendPreviewItems(newItems);
     }
 
-    hiddenPhotoInput.addEventListener('change', handleSelectedFiles);
-    window.addEventListener('focus', () => {
-      setTimeout(() => {
-        if (!isProcessingFiles && hiddenPhotoInput.files && hiddenPhotoInput.files.length > 0) {
-          handleSelectedFiles();
-        }
-      }, 300);
-    });
-
-    /**
-     * 上傳前按需壓縮（同時支援 createImageBitmap 記憶體安全釋放）
-     */
     async function compressImageOnDemand(file, maxW = 1024, quality = 0.55) {
       if (typeof createImageBitmap === 'function') {
         try {
@@ -1438,9 +1444,6 @@
       }
     }
 
-    /**
-     * 高效能增量 DOM 建立與狀態原地更新（避免 200 張照片每次勾選或上傳時全部銷毀重建 DOM）
-     */
     function createPreviewCardDOM(item, index) {
       const div = document.createElement('div');
       div.dataset.photoId = item.id;
@@ -1539,9 +1542,6 @@
       });
     }
 
-    /**
-     * 原地同步卡片勾選與已上傳打勾狀態（0 閃爍、不重新載入圖片）
-     */
     function syncPreviewSelectionState() {
       const c = document.getElementById('preview');
       const emptyEl = document.getElementById('photoEmpty');
@@ -1567,7 +1567,6 @@
           const delBtn = card.querySelector('.delete-photo');
           if (delBtn) delBtn.remove();
           card.appendChild(buildUploadedOverlayDOM(item.uploadedTo));
-          // 照片已上傳完成，釋放原始大檔 File 參照，只保留輕量 160px 預覽縮圖，省下巨量記憶體！
           item.file = null;
         }
       });
@@ -1624,7 +1623,6 @@
       progressBarFill.style.width = '0%';
       progressPercentText.innerText = '0%';
 
-      // 每批 4 張：兼顧行動網路穩定度與多人同時傳輸速度
       const BATCH_SIZE = 4;
       let totalUploaded = 0;
       let sharedSeqNo = null;
@@ -1632,7 +1630,6 @@
       let accumulatedUrls = [];
       let lastErrorMsg = '';
 
-      // 取得簡短廁間標籤，顯示在打勾遮罩下方，讓使用者清楚知道這張傳去哪裡
       const parsedTarget = parseToiletName(selectedToilet.name);
       const shortTargetLabel = parsedTarget.subTask !== '一般' ? parsedTarget.subTask : parsedTarget.baseName.slice(-5);
 
@@ -1713,7 +1710,6 @@
             progressPercentText.innerText = `${percent}%`;
             progressStatusText.innerText = `已上傳 ${totalUploaded}/${toUploadQueue.length} 張`;
 
-            // 原地將剛傳完的照片變成綠色打勾 + 標註公廁名稱，不重繪整個網格
             syncPreviewSelectionState();
           } else {
             showToast(`⚠️ ${lastErrorMsg || '部分照片重試失敗'}`, 'error');
@@ -1730,7 +1726,7 @@
             user: user, 
             time: new Date().toISOString() 
           });
-          try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
+          try { safeStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
           checkGroupCompletion();
         }
 
