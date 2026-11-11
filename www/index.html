@@ -345,6 +345,14 @@
       background: linear-gradient(180deg, #34D399 0%, #10B981 100%);
       color: white; border-color: #065F46; box-shadow: 0 4px 0 #047857;
     }
+    /* 已完成且目前再次選中 (補傳狀態) ➔ 超顯眼金黃光圈 + 翠綠高亮 + 放大 */
+    .sub-task-pill.done.active {
+      background: linear-gradient(180deg, #10B981 0%, #047857 100%) !important;
+      color: #FFFFFF !important;
+      border: 3.5px solid #FBBF24 !important;
+      box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.5), 0 5px 0 #B45309 !important;
+      transform: scale(1.06) !important;
+    }
 
     /* ==========================================================================
        【圖 1 按鈕排版徹底重構】
@@ -471,20 +479,44 @@
     .delete-photo:active { transform: scale(0.85); }
 
     .uploaded-overlay {
-      position: absolute; inset: 0; background-color: rgba(11, 19, 43, 0.78);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      position: absolute; inset: 0;
+      background-color: rgba(11, 19, 43, 0.5);
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
       z-index: 5; pointer-events: none; padding: 4px;
     }
-    .uploaded-check {
-      width: 36px; height: 36px; border-radius: 50%; background-color: var(--cartoon-green);
-      border: 2px solid #FFFFFF; box-shadow: 0 3px 0 var(--cartoon-green-shadow);
-      color: white; display: flex; align-items: center; justify-content: center; font-size: 22px;
-      margin-bottom: 4px;
+    .uploaded-tag-card {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1.5px solid #38BDF8;
+      border-radius: 10px;
+      padding: 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
-    .uploaded-target-tag {
-      background-color: #F59E0B; color: #78350F; font-size: 10px; font-weight: 900;
-      padding: 2px 6px; border-radius: 6px; max-width: 95%; border: 1px solid #78350F;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+    .uploaded-tag-top {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      width: 100%;
+    }
+    .mini-check-dot {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #10B981; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; flex-shrink: 0;
+      box-shadow: 0 1px 0 #047857;
+    }
+    .uploaded-place-name {
+      font-size: 10px; font-weight: 900; color: #FBBF24;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62px;
+    }
+    .uploaded-sub-type {
+      font-size: 10px; font-weight: 800; color: #38BDF8;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px;
     }
 
     .empty-state { padding: 36px 20px; text-align: center; color: var(--text-muted); }
@@ -581,14 +613,34 @@
     .hidden { display: none !important; }
     
     .toast {
-      position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-120px);
-      background-color: #1C2541; border: 2.5px solid #38BDF8; border-radius: 20px; padding: 12px 22px;
-      z-index: 3000; font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 10px;
-      transition: transform 0.25s ease; color: #FFFFFF;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 4px 0 #0369A1;
-      max-width: 92vw;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.85);
+      opacity: 0;
+      pointer-events: none;
+      background-color: #1C2541;
+      border: 3.5px solid #38BDF8;
+      border-radius: 24px;
+      padding: 18px 26px;
+      z-index: 99999;
+      font-weight: 900;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+      color: #FFFFFF;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 6px 0 #0284C7;
+      max-width: 88vw;
+      text-align: center;
     }
-    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.show {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
 
     .skeleton-card { display: flex; gap: 16px; padding: 18px; border: 3px solid var(--border-subtle); background-color: var(--bg-surface); border-radius: 20px; margin-bottom: 12px; }
     .skeleton-badge { width: 44px; height: 44px; border-radius: 14px; background-color: #0F172A; }
@@ -1777,12 +1829,26 @@
       return div;
     }
 
-    function buildUploadedOverlayDOM(uploadedToText) {
+    function buildUploadedOverlayDOM(uploadedData) {
       const overlay = document.createElement('div');
       overlay.className = 'uploaded-overlay';
+      let place = '', type = '';
+      if (uploadedData && typeof uploadedData === 'object') {
+        place = uploadedData.place || '';
+        type = uploadedData.type || '';
+      } else if (typeof uploadedData === 'string') {
+        const parts = uploadedData.split('·');
+        place = parts[0] ? parts[0].trim() : uploadedData;
+        type = parts[1] ? parts[1].trim() : '';
+      }
       overlay.innerHTML = `
-        <div class="uploaded-check"><i class="material-icons">check</i></div>
-        ${uploadedToText ? `<div class="uploaded-target-tag">${uploadedToText}</div>` : ''}
+        <div class="uploaded-tag-card">
+          <div class="uploaded-tag-top">
+            <span class="mini-check-dot"><i class="material-icons" style="font-size:12px; font-weight:900;">check</i></span>
+            <span class="uploaded-place-name">${place}</span>
+          </div>
+          ${type ? `<span class="uploaded-sub-type">${type}</span>` : ''}
+        </div>
       `;
       return overlay;
     }
@@ -1900,7 +1966,11 @@
       let lastErrorMsg = '';
 
       const parsedTarget = parseToiletName(selectedToilet.name);
-      const shortTargetLabel = parsedTarget.subTask !== '一般' ? parsedTarget.subTask : parsedTarget.baseName.slice(-5);
+      let shortPlace = parsedTarget.baseName.replace(/^(南投市|中寮鄉|草屯鎮|名間鄉|集集鎮|水里鄉|魚池鄉|國姓鄉|埔里鎮|竹山鎮|鹿谷鄉|信義鄉|仁愛鄉)/, '').trim();
+      if (shortPlace.length > 5) shortPlace = shortPlace.substring(0, 5);
+      if (!shortPlace) shortPlace = parsedTarget.baseName.substring(0, 5);
+      const subType = parsedTarget.subTask;
+      const uploadedDataObj = { place: shortPlace, type: subType };
 
       try {
         // 切割所有待上傳照片批次
@@ -1953,7 +2023,7 @@
         firstBatch.items.forEach(p => {
           p.status = 'success';
           p.selected = false;
-          p.uploadedTo = shortTargetLabel;
+          p.uploadedTo = uploadedDataObj;
         });
         totalUploaded += firstBatch.items.length;
         syncPreviewSelectionState();
@@ -2022,7 +2092,7 @@
                 batch.items.forEach(p => {
                   p.status = 'success';
                   p.selected = false;
-                  p.uploadedTo = shortTargetLabel;
+                  p.uploadedTo = uploadedDataObj;
                 });
                 totalUploaded += batch.items.length;
                 syncPreviewSelectionState();
