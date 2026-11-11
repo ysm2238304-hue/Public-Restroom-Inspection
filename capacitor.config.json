@@ -1,0 +1,14 @@
+{
+  "appId": "tw.gov.nantou.toiletinspect",
+  "appName": "公廁巡檢",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "always"
+  },
+  "plugins": {
+    "Camera": {
+      "permissionsType": "photos"
+    }
+  }
+}

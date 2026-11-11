@@ -1,0 +1,30 @@
+{
+  "name": "toilet-inspect-app",
+  "version": "1.0.0",
+  "description": "南投縣公廁巡檢拍照上傳系統 (Capacitor 原生 iOS 支援版)",
+  "main": "index.js",
+  "scripts": {
+    "build": "npx cap copy",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capacitor/camera": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "keywords": [
+    "capacitor",
+    "toilet",
+    "inspection",
+    "ios"
+  ],
+  "author": "Nantou Environment Project",
+  "license": "MIT"
+}
