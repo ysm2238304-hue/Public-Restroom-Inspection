@@ -123,11 +123,6 @@
     }
     .welcome-btn:active { transform: scale(0.97); }
     .welcome-btn:disabled { background: var(--mat-thin); color: var(--label-tertiary); pointer-events: none; border: 1px solid var(--border-light); }
-
-    .api-setup-toggle {
-      margin-top: 16px; font-size: 13px; color: var(--label-secondary); font-weight: 600;
-      cursor: pointer; display: flex; align-items: center; gap: 4px;
-    }
     
     .loading-spinner {
       display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3);
@@ -509,10 +504,6 @@
         <span id="btnText">啟動系統</span>
         <div class="loading-spinner" id="btnSpinner"></div>
       </button>
-
-      <div class="api-setup-toggle" onclick="promptApiUrlConfig()">
-        <i class="material-icons" style="font-size: 18px;">settings</i> 設定後端連線網址
-      </div>
     </div>
   </div>
 
@@ -524,11 +515,8 @@
           <div class="app-title" id="pageTitle">公廁上傳</div>
         </div>
         <div class="header-actions">
-          <div class="icon-btn-circle" onclick="forceSyncMasterData()" title="重新同步公廁名冊">
+          <div class="icon-btn-circle" onclick="forceSyncMasterData()" title="重新同步公廁名冊與團隊紀錄">
             <i class="material-icons" style="font-size: 20px;">sync</i>
-          </div>
-          <div class="icon-btn-circle" onclick="promptApiUrlConfig()" title="設定 GAS 後端網址">
-            <i class="material-icons" style="font-size: 20px;">link</i>
           </div>
           <div class="user-profile" id="userAvatar" onclick="editProfile()" title="修改使用者">A</div>
         </div>
@@ -687,32 +675,9 @@
 
   <script>
     /**
-     * ============================================================================
-     * 【GitHub Pages 部署設定區】
-     * 若您將此檔案放到 GitHub Pages，請將下方 DEFAULT_GAS_EXEC_URL 替換為您 GAS 部署後的「網頁應用程式網址 (結尾為 /exec)」。
-     * 或者您也可以直接在網頁介面上點擊「設定後端連線網址」貼上儲存（會自動記憶在手機裡）。
-     * ============================================================================
+     * 固定內建後端連線網址（供多人直接使用，免設定）
      */
-    const DEFAULT_GAS_EXEC_URL = ''; 
-
-    function getGasApiUrl() {
-      return localStorage.getItem('toilet_gas_api_url') || DEFAULT_GAS_EXEC_URL;
-    }
-
-    function promptApiUrlConfig() {
-      const current = getGasApiUrl();
-      const input = prompt('請貼上 Google Apps Script 部署後的網頁應用程式網址 (https://script.google.com/macros/s/.../exec)：', current);
-      if (input !== null) {
-        const trimmed = input.trim();
-        localStorage.setItem('toilet_gas_api_url', trimmed);
-        if (trimmed) {
-          showToast('已儲存後端連線網址，正在同步資料...');
-          fetchDataInBackground(true);
-        } else {
-          showToast('已清除自訂連線網址');
-        }
-      }
-    }
+    const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbx-r0uMfTIS5NmcYi7b9GF03cS7DwRRj9rqAtKgXrEiV4fwdss4AytpeUeC9VrGSQAA-A/exec';
 
     let allData = [], photoQueue = [], selectedToilet = null, currentSheetType = '', selectedType = '重點公廁';
     let allHistory = [], currentFilter = 'currentUser', currentGroupRows = [], isDataLoaded = false;
@@ -806,18 +771,16 @@
         });
       }
 
-      const apiUrl = getGasApiUrl();
-      if (!apiUrl) {
-        throw new Error('尚未設定 GAS 後端網址，請點擊「設定後端連線網址」');
-      }
-
       if (action === 'init' || action === 'history') {
-        const sep = apiUrl.includes('?') ? '&' : '?';
-        const res = await fetch(`${apiUrl}${sep}action=${action}`, { method: 'GET', redirect: 'follow' });
+        const sep = GAS_EXEC_URL.includes('?') ? '&' : '?';
+        const res = await fetch(`${GAS_EXEC_URL}${sep}action=${action}&_t=${Date.now()}`, {
+          method: 'GET',
+          redirect: 'follow'
+        });
         return await res.json();
       } else {
         // 使用 text/plain 送出 POST JSON，避開 iOS Safari CORS preflight OPTIONS 請求失敗問題
-        const res = await fetch(apiUrl, {
+        const res = await fetch(GAS_EXEC_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action, payload }),
@@ -860,8 +823,15 @@
         console.warn('讀取本地快取失敗:', e);
       }
 
-      // 2. 背景靜默向伺服器更新最新名冊與歷史紀錄
+      // 2. 背景靜默向伺服器更新最新名冊與多人團隊歷史紀錄
       fetchDataInBackground(false);
+    });
+
+    // 當多人同時巡檢時，使用者切回視窗自動背景同步最新「已完成紀錄」，避免重複巡檢同一公廁
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && isDataLoaded && !isUploading) {
+        refreshHistoryFromSheet();
+      }
     });
 
     function updateMasterCountBadge() {
@@ -872,28 +842,12 @@
     }
 
     async function forceSyncMasterData() {
-      showToast('正在從雲端同步最新公廁名冊...');
+      showToast('正在同步最新公廁名冊與團隊紀錄...');
       await fetchDataInBackground(true);
     }
 
     async function fetchDataInBackground(showSuccessToast = false) {
       try {
-        if (!isGAS && !getGasApiUrl()) {
-          if (!isDataLoaded) {
-            // 離線展示預設資料
-            allData = [
-              ['重點公廁', '南投市', 'M010000001', '南投市中山公園女廁', '南投市公所'],
-              ['重點公廁', '南投市', 'M010000002', '南投市中山公園男廁', '南投市公所'],
-              ['列管公廁', '中寮鄉', 'M080000011', '中寮鄉公所1F-女廁', '中寮鄉公所'],
-              ['列管公廁', '中寮鄉', 'M080000012', '中寮鄉公所1F-男廁', '中寮鄉公所']
-            ];
-            isDataLoaded = true;
-            updateMasterCountBadge();
-            autoSelectDefault();
-          }
-          return;
-        }
-
         const res = await callBackend('init');
         if (res && res.success) {
           const hadDataBefore = isDataLoaded;
@@ -930,20 +884,24 @@
           btn.disabled = false;
           document.getElementById('btnText').innerText = '啟動系統';
           document.getElementById('btnSpinner').style.display = 'none';
-          showToast('連線失敗，請檢查網路或後端網址設定', 'error');
+          showToast('連線失敗，請確認 GAS 已更新部署版本', 'error');
         }
       }
     }
 
     async function refreshHistoryFromSheet() {
       try {
-        if (!isGAS && !getGasApiUrl()) return;
         const res = await callBackend('history');
         if (res && res.success && Array.isArray(res.history)) {
           allHistory = res.history;
           try { localStorage.setItem('toilet_history_cache_v2', JSON.stringify(allHistory)); } catch (e) {}
           if (!document.getElementById('page-history').classList.contains('hidden')) {
             renderHistory(allHistory);
+          }
+          // 同步更新當前地點廁間的「完成綠勾」狀態（多人協作即時反映）
+          if (currentGroupRows.length > 0 && selectedToilet) {
+            const activeRow = currentGroupRows.find(r => r[2] === selectedToilet.id) || currentGroupRows[0];
+            renderSubTasks(activeRow);
           }
         }
       } catch (e) {
@@ -1032,7 +990,7 @@
     }
 
     function openSheet(type) {
-      if (allData.length === 0) return showToast('資料尚未載入，請檢查連線設定', 'error');
+      if (allData.length === 0) return showToast('資料尚未載入，請稍候再試', 'error');
       let items = [];
       if (type === 'township') {
         items = [...new Set(allData.filter(r => r[0] === selectedType).map(r => r[1]))].sort();
@@ -1227,11 +1185,9 @@
         showToast('請先點選「起始照片」與「結束照片」至少 2 張，再按區間連選', 'error');
         return;
       }
-      let newlySelected = 0;
       for (let i = firstIdx; i <= lastIdx; i++) {
         if (photoQueue[i].status !== 'success' && !photoQueue[i].selected) {
           photoQueue[i].selected = true;
-          newlySelected++;
         }
       }
       syncPreviewSelectionState();
@@ -1642,10 +1598,6 @@
         showToast('⚠️ 請先選擇要上傳的公廁名稱！', 'error');
         return;
       }
-      if (!isGAS && !getGasApiUrl()) {
-        promptApiUrlConfig();
-        return;
-      }
 
       const toUploadQueue = photoQueue.filter(p => p.selected && p.status !== 'success');
       if (toUploadQueue.length === 0) return;
@@ -1672,7 +1624,7 @@
       progressBarFill.style.width = '0%';
       progressPercentText.innerText = '0%';
 
-      // 每批 4 張：兼顧行動網路穩定度與傳輸速度
+      // 每批 4 張：兼顧行動網路穩定度與多人同時傳輸速度
       const BATCH_SIZE = 4;
       let totalUploaded = 0;
       let sharedSeqNo = null;
